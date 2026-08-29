@@ -73,7 +73,7 @@ Measured on the real pipeline:
 | Context.dev extraction (6 claims, 1 page) | ~23 s |
 | Devin FAIL verification (webhook retries) | ~92 s, 0 ACUs |
 
-The 7-day `maxAgeMs` cache means a repeated extraction against the same URL returns fast and does not re-bill. This is caching of a real API response — not substituted fixture data.
+The 7-day `maxAgeMs` cache makes a repeated extraction against the same URL noticeably faster (~10s vs ~23s measured), because Context.dev reuses the upstream crawl. It still costs 10 credits per call — budget one extraction per rehearsal. This is a real API response every time, never substituted fixture data.
 
 ## If something fails live
 

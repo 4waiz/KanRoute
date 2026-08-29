@@ -135,7 +135,7 @@ Names only — no values appear in this repository.
 ## Limitations
 
 - Public GitHub repositories only. Private-repo OAuth is out of scope for this build.
-- Context.dev `/web/extract` results are cached for 7 days (`maxAgeMs`) so repeated demo runs do not re-burn credits. Live runs are still real API calls; this is caching, not fixture substitution.
+- Context.dev `/web/extract` sets `maxAgeMs` to 7 days, so repeated runs against the same URL reuse the upstream crawl and return faster (~10s vs ~23s measured). Note this speeds up repeat runs but **still consumes 10 credits per call** — it is upstream crawl caching, not free replay, and never fixture substitution.
 - Devin verdicts are only as good as Devin's inspection. KanForge records the `limitations` the agent reports rather than hiding them.
 - A claim can be *correctly* classified `human_review` and still be true. KanForge reports what it can prove, not what is true.
 - The board verifies one claim at a time by design, to bound agent spend.

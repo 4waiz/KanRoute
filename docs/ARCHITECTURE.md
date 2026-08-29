@@ -57,7 +57,7 @@ The key is declared as a typed environment contract and lives only on the Convex
 
 `contextPipeline.runExtraction` calls `/web/extract` with a JSON Schema describing a claim. The endpoint crawls the site and returns objects already matching that schema, so KanForge does no free-text parsing. The instructions deliberately push the classifier to be conservative — compliance certifications and SLAs are explicitly never `executable`.
 
-Cost controls: `maxPages: 3` bounds the crawl, and `maxAgeMs: 604800000` (7 days) means repeated demo runs reuse the cached crawl instead of re-billing. Extraction costs 10 credits per call.
+Cost controls: `maxPages: 3` bounds the crawl and `maxAgeMs: 604800000` (7 days) lets repeated runs reuse the upstream crawl, which cuts latency roughly in half. Extraction costs 10 credits per call regardless — measured against the live account, two extractions consumed 20 credits — so the cache buys speed and determinism, not free calls.
 
 ## Devin integration
 

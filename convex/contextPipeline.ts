@@ -127,8 +127,8 @@ export const runExtraction = internalAction({
           schema: CLAIM_SCHEMA,
           instructions: INSTRUCTIONS,
           maxPages: 3,
-          // 7-day cache: repeated demo rehearsals reuse the same crawl instead
-          // of burning credits. Disclosed in the README.
+          // 7-day upstream cache: repeated rehearsals reuse the same crawl, which
+          // roughly halves latency. Still billed at 10 credits per call.
           maxAgeMs: 604800000,
         },
       })) as {
