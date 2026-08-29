@@ -64,7 +64,7 @@ export default function AnalysisPage() {
   return (
     <main className="kf-grid-bg min-h-screen">
       <div className="mx-auto max-w-[1400px] px-6 pb-16">
-        <header className="flex flex-wrap items-center justify-between gap-4 py-6">
+        <header className="flex flex-wrap items-center justify-between gap-4 py-5">
           <div className="flex items-center gap-6">
             <Link href="/">
               <KanForgeWordmark compact />
@@ -101,8 +101,8 @@ export default function AnalysisPage() {
         </header>
 
         {/* Overview: one glanceable number plus the counts that matter. */}
-        <section className="grid gap-3 lg:grid-cols-[auto_1fr]">
-          <div className="kf-panel flex items-center justify-center rounded-xl px-8 py-5">
+        <section className="grid gap-3 lg:grid-cols-[auto_1fr] lg:items-stretch">
+          <div className="kf-panel flex items-center justify-center rounded-xl px-7 py-4">
             <VerificationRing proven={counts.settled} total={counts.total} />
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
