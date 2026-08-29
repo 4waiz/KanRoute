@@ -34,3 +34,13 @@ export const byClaim = query({
       .withIndex("by_claimId", (q) => q.eq("claimId", claimId))
       .collect(),
 });
+
+export const byAnalysis = query({
+  args: { analysisId: v.id("analyses") },
+  returns: v.array(v.any()),
+  handler: async (ctx, { analysisId }) =>
+    ctx.db
+      .query("evidence")
+      .withIndex("by_analysisId", (q) => q.eq("analysisId", analysisId))
+      .collect(),
+});

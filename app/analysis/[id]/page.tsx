@@ -8,6 +8,7 @@ import { ExternalLink, Play, Radio, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { KanForgeWordmark } from "@/components/KanForgeMark";
+import { Headline, PipelineStrip, VerifiabilityNote } from "@/components/Narrative";
 import {
   MetricTile,
   ProviderTag,
@@ -35,6 +36,9 @@ export default function AnalysisPage() {
   const jobs = useQuery(api.jobs.byAnalysis, { analysisId }) as
     | JobDoc[]
     | undefined;
+  const allEvidence = useQuery(api.evidence.byAnalysis, { analysisId }) as
+    | EvidenceDoc[]
+    | undefined;
 
   const [selected, setSelected] = useState<Id<"claims"> | null>(null);
 
@@ -49,8 +53,23 @@ export default function AnalysisPage() {
       settled: list.filter((c) =>
         ["pass", "fail", "human_review"].includes(c.status),
       ).length,
+      settledExecutable: list.filter(
+        (c) =>
+          c.verifiability === "executable" &&
+          ["pass", "fail"].includes(c.status),
+      ).length,
     };
   }, [claims]);
+
+  // The failed claim is the headline finding; surface it, don't bury it.
+  const failedClaim = useMemo(
+    () => (claims ?? []).find((c) => c.status === "fail"),
+    [claims],
+  );
+  const failEvidence = useMemo(
+    () => (allEvidence ?? []).find((e) => e.claimId === failedClaim?._id),
+    [allEvidence, failedClaim],
+  );
 
   const jobByClaim = useMemo(() => {
     const map = new Map<string, JobDoc>();
@@ -100,8 +119,39 @@ export default function AnalysisPage() {
           </div>
         </header>
 
+        <div className="space-y-3">
+          <Headline
+            total={counts.total}
+            executable={counts.executable}
+            pass={counts.pass}
+            fail={counts.fail}
+            review={counts.review}
+            settledExecutable={counts.settledExecutable}
+            analysisStatus={analysis?.status}
+            topFail={
+              failedClaim
+                ? {
+                    claim: failedClaim.normalizedClaim,
+                    expected: failEvidence?.expected,
+                    observed: failEvidence?.observed,
+                    session: jobByClaim.get(failedClaim._id)?.devinSessionId,
+                  }
+                : undefined
+            }
+            onOpenFail={
+              failedClaim ? () => setSelected(failedClaim._id) : undefined
+            }
+          />
+          <PipelineStrip
+            pages={analysis?.pagesAnalyzed ?? 0}
+            claims={counts.total}
+            sessions={(jobs ?? []).filter((j) => j.devinSessionId).length}
+            evidenceCount={(allEvidence ?? []).length}
+          />
+        </div>
+
         {/* Overview: one glanceable number plus the counts that matter. */}
-        <section className="grid gap-3 lg:grid-cols-[auto_1fr] lg:items-stretch">
+        <section className="mt-3 grid gap-3 lg:grid-cols-[auto_1fr] lg:items-stretch">
           <div className="kf-panel flex items-center justify-center rounded-xl px-6 py-3">
             <VerificationRing proven={counts.settled} total={counts.total} />
           </div>
@@ -165,6 +215,13 @@ type AnalysisDoc = {
   repositoryUrl: string;
   status: string;
   error?: string;
+  pagesAnalyzed?: number;
+};
+
+type EvidenceDoc = {
+  claimId: string;
+  expected?: string;
+  observed?: string;
 };
 
 type JobDoc = {
@@ -276,13 +333,7 @@ function ClaimBoard({
                 <span className="mt-1 flex items-center gap-2 text-[10px] uppercase tracking-[0.1em] text-[var(--kf-text-faint)]">
                   <span>{c.category.replace(/_/g, " ")}</span>
                   <span>·</span>
-                  <span
-                    style={{
-                      color: isExec ? "var(--kf-running)" : "var(--kf-review)",
-                    }}
-                  >
-                    {c.verifiability.replace(/_/g, " ")}
-                  </span>
+                  <VerifiabilityNote verifiability={c.verifiability} />
                   {job?.devinSessionId && (
                     <>
                       <span>·</span>
