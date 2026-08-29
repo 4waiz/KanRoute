@@ -59,7 +59,6 @@ export function Headline({
             {topFail.expected && (
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
                 <Chip label="Documented" value={topFail.expected} />
-                <span className="text-[var(--kf-text-faint)]">vs</span>
                 <Chip
                   label="Actually observed"
                   value={topFail.observed ?? "—"}

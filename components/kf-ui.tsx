@@ -101,12 +101,12 @@ export function MetricTile({
   sub?: string;
 }) {
   return (
-    <div className="kf-panel flex flex-col justify-center rounded-xl px-4 py-3">
+    <div className="kf-panel flex flex-col justify-center rounded-xl px-4 py-2.5">
       <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--kf-text-faint)]">
         {label}
       </div>
       <div
-        className="mt-1.5 text-[30px] font-semibold leading-none tabular-nums"
+        className="mt-1 text-[27px] font-semibold leading-none tabular-nums"
         style={{ color: accent ?? "#fff" }}
       >
         {value}
@@ -122,7 +122,7 @@ export function MetricTile({
 export function VerificationRing({
   proven,
   total,
-  size = 128,
+  size = 108,
 }: {
   proven: number;
   total: number;
@@ -161,11 +161,11 @@ export function VerificationRing({
         />
       </svg>
       <div className="absolute text-center">
-        <div className="text-[34px] font-semibold leading-none tabular-nums text-white">
+        <div className="text-[27px] font-semibold leading-none tabular-nums text-white">
           {Math.round(pct * 100)}
-          <span className="text-[16px] text-[var(--kf-text-faint)]">%</span>
+          <span className="text-[13px] text-[var(--kf-text-faint)]">%</span>
         </div>
-        <div className="mt-1.5 text-[10px] uppercase tracking-[0.14em] text-[var(--kf-text-faint)]">
+        <div className="mt-1 text-[9px] uppercase tracking-[0.14em] text-[var(--kf-text-faint)]">
           Verified
         </div>
         <div className="mt-0.5 text-[11px] tabular-nums text-[var(--kf-text-dim)]">
