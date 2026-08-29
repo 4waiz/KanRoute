@@ -101,12 +101,12 @@ export function MetricTile({
   sub?: string;
 }) {
   return (
-    <div className="kf-panel flex flex-col justify-center rounded-xl px-4 py-3.5">
+    <div className="kf-panel flex flex-col justify-center rounded-xl px-4 py-3">
       <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--kf-text-faint)]">
         {label}
       </div>
       <div
-        className="mt-1.5 text-[32px] font-semibold leading-none tabular-nums"
+        className="mt-1.5 text-[30px] font-semibold leading-none tabular-nums"
         style={{ color: accent ?? "#fff" }}
       >
         {value}
@@ -122,7 +122,7 @@ export function MetricTile({
 export function VerificationRing({
   proven,
   total,
-  size = 146,
+  size = 128,
 }: {
   proven: number;
   total: number;

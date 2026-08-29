@@ -102,7 +102,7 @@ export default function AnalysisPage() {
 
         {/* Overview: one glanceable number plus the counts that matter. */}
         <section className="grid gap-3 lg:grid-cols-[auto_1fr] lg:items-stretch">
-          <div className="kf-panel flex items-center justify-center rounded-xl px-7 py-4">
+          <div className="kf-panel flex items-center justify-center rounded-xl px-6 py-3">
             <VerificationRing proven={counts.settled} total={counts.total} />
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
@@ -438,6 +438,36 @@ function EvidencePanel({
               </div>
             </div>
 
+            {evidence?.expected && (
+              <div>
+                <Label>Result</Label>
+                <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+                  <Compare label="Expected" value={evidence.expected} />
+                  <div className="grid place-items-center text-[10px] font-semibold text-[var(--kf-text-faint)]">
+                    VS
+                  </div>
+                  <Compare
+                    label="Observed"
+                    value={evidence.observed ?? "—"}
+                    color={
+                      evidence.verdict === "FAIL"
+                        ? "var(--kf-fail)"
+                        : "var(--kf-pass)"
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {evidence?.summary && (
+              <div>
+                <Label>Summary</Label>
+                <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--kf-text-dim)]">
+                  {evidence.summary}
+                </p>
+              </div>
+            )}
+
             <div>
               <Label>Source</Label>
               <a
@@ -473,36 +503,6 @@ function EvidencePanel({
                     {claim.suggestedEvidence}
                   </p>
                 )}
-              </div>
-            )}
-
-            {evidence?.expected && (
-              <div>
-                <Label>Result</Label>
-                <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
-                  <Compare label="Expected" value={evidence.expected} />
-                  <div className="grid place-items-center text-[10px] font-semibold text-[var(--kf-text-faint)]">
-                    VS
-                  </div>
-                  <Compare
-                    label="Observed"
-                    value={evidence.observed ?? "—"}
-                    color={
-                      evidence.verdict === "FAIL"
-                        ? "var(--kf-fail)"
-                        : "var(--kf-pass)"
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {evidence?.summary && (
-              <div>
-                <Label>Summary</Label>
-                <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--kf-text-dim)]">
-                  {evidence.summary}
-                </p>
               </div>
             )}
 
