@@ -12,6 +12,7 @@ import {
   WhyPanel,
 } from "@/components/Ops";
 import { Panel } from "@/components/Shell";
+import { Tour } from "@/components/Tour";
 import { useConsole, useRouteSelection } from "@/components/useConsole";
 import { ROUTE_COLORS } from "@/lib/routeColors";
 
@@ -57,7 +58,10 @@ export default function Overview() {
   return (
     <div className="grid min-h-0 gap-2.5 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)_minmax(0,158px)]">
       {/* Before -> Optimise -> After, with the supporting numbers */}
-      <div className="grid shrink-0 gap-2.5 xl:grid-cols-[minmax(0,1fr)_repeat(3,132px)]">
+      <div
+        data-tour="headline"
+        className="grid shrink-0 gap-2.5 xl:grid-cols-[minmax(0,1fr)_repeat(3,132px)]"
+      >
         <ConsolidationFlow
           status={latest?.status}
           baselineVans={stats?.baselineVans ?? 0}
@@ -86,6 +90,7 @@ export default function Overview() {
       {/* Routes, map, fleet */}
       <div className="grid min-h-0 gap-2.5 lg:grid-cols-[236px_minmax(0,1fr)_298px]">
         <Panel
+          dataTour="routes"
           title="Shared vehicles"
           sub={`${latest?.companiesServed ?? 0} companies pooled`}
           right={
@@ -173,7 +178,10 @@ export default function Overview() {
           )}
         </Panel>
 
-        <div className="kf-card min-h-[300px] overflow-hidden p-1.5">
+        <div
+          data-tour="map"
+          className="kf-card min-h-[300px] overflow-hidden p-1.5"
+        >
           <RouteMap
             shipments={shipments ?? []}
             routes={mapRoutes}
@@ -186,6 +194,7 @@ export default function Overview() {
         </div>
 
         <FleetStatus
+          dataTour="fleet"
           vehicles={vehicles ?? []}
           busy={busy}
           onDispatch={() => act(() => dispatchFleet({}))}
@@ -196,6 +205,7 @@ export default function Overview() {
       {/* Reasoning, disruption, live state */}
       <div className="grid min-h-0 gap-2.5 lg:grid-cols-[minmax(0,1.2fr)_260px_minmax(0,1fr)]">
         <WhyPanel
+          dataTour="why"
           strategy={latest?.strategy}
           routeLabel={selectedRoute?.label}
           routeZone={selectedRoute?.zone}
@@ -203,13 +213,16 @@ export default function Overview() {
           companies={selectedRoute?.companies}
         />
         <DisruptionPanel
+          dataTour="disruption"
           scenarios={scenarios ?? []}
           busy={busy}
           activeDisruption={latest?.disruption}
           onTrigger={(id) => act(() => disrupt({ scenarioId: id }))}
         />
-        <LiveState events={events ?? []} />
+        <LiveState dataTour="live" events={events ?? []} />
       </div>
+
+      <Tour />
     </div>
   );
 }

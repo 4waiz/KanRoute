@@ -146,15 +146,20 @@ export function WhyPanel({
   routeZone,
   rationale,
   companies,
+  dataTour,
 }: {
   strategy?: string;
   routeLabel?: string;
   routeZone?: string;
   rationale?: string;
   companies?: string[];
+  dataTour?: string;
 }) {
   return (
-    <div className="kf-card flex min-h-0 flex-col overflow-hidden">
+    <div
+      data-tour={dataTour}
+      className="kf-card flex min-h-0 flex-col overflow-hidden"
+    >
       <div className="flex shrink-0 items-center justify-between px-3 pb-1.5 pt-2.5">
         <h2 className="text-[12px] font-semibold tracking-tight text-[var(--kf-ink)]">
           Why this plan
@@ -204,14 +209,19 @@ export function DisruptionPanel({
   onTrigger,
   busy,
   activeDisruption,
+  dataTour,
 }: {
   scenarios: { id: string; label: string; detail: string }[];
   onTrigger: (id: string) => void;
   busy: boolean;
   activeDisruption?: string;
+  dataTour?: string;
 }) {
   return (
-    <div className="kf-card flex min-h-0 flex-col overflow-hidden">
+    <div
+      data-tour={dataTour}
+      className="kf-card flex min-h-0 flex-col overflow-hidden"
+    >
       <div className="flex shrink-0 items-center justify-between px-3 pb-1.5 pt-2.5">
         <h2 className="text-[12px] font-semibold tracking-tight text-[var(--kf-ink)]">
           Simulate disruption
@@ -265,13 +275,18 @@ export function DisruptionPanel({
  */
 export function LiveState({
   events,
+  dataTour,
 }: {
   events: { _id: string; provider: string; message: string; timestamp: number }[];
+  dataTour?: string;
 }) {
   const newest = events[0];
 
   return (
-    <div className="kf-card flex min-h-0 flex-col overflow-hidden">
+    <div
+      data-tour={dataTour}
+      className="kf-card flex min-h-0 flex-col overflow-hidden"
+    >
       <div className="flex shrink-0 items-center justify-between px-3 pb-1.5 pt-2.5">
         <h2 className="text-[12px] font-semibold tracking-tight text-[var(--kf-ink)]">
           Live state

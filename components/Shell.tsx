@@ -10,12 +10,14 @@ import {
   Loader2,
   Map as MapIcon,
   Route as RouteIcon,
+  HelpCircle,
   Settings,
   Truck,
   Users,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { KanRouteMark } from "@/components/Brand";
+import { startTour } from "@/components/Tour";
 
 const NAV = [
   { href: "/", label: "Overview", icon: Home },
@@ -77,6 +79,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
             />
           </span>
           <button
+            onClick={startTour}
+            title="Replay the guided tour"
+            aria-label="Replay the guided tour"
+            className="kr-tour-replay"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </button>
+          <button
             onClick={() => act(() => seed({}), "seed")}
             disabled={busy !== null}
             className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kf-card)] px-3 py-2 text-[11.5px] font-semibold text-[var(--kf-ink-2)] ring-1 ring-[var(--kf-border)] transition hover:text-[var(--kf-ink)] disabled:opacity-50"
@@ -96,6 +106,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               )
             }
             disabled={busy !== null}
+            data-tour="run"
             className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11.5px] font-semibold text-white transition disabled:opacity-50"
             style={{ background: "var(--kf-accent)" }}
           >
@@ -189,6 +200,7 @@ export function Panel({
   children,
   className = "",
   bodyClassName = "",
+  dataTour,
 }: {
   title?: string;
   sub?: string;
@@ -196,9 +208,14 @@ export function Panel({
   children: React.ReactNode;
   className?: string;
   bodyClassName?: string;
+  /** Anchors the guided tour's spotlight to this panel. */
+  dataTour?: string;
 }) {
   return (
-    <div className={`kf-card flex min-h-0 flex-col overflow-hidden ${className}`}>
+    <div
+      data-tour={dataTour}
+      className={`kf-card flex min-h-0 flex-col overflow-hidden ${className}`}
+    >
       {title && (
         <div className="flex shrink-0 items-center justify-between gap-2 px-3 pb-2 pt-3">
           <div className="min-w-0">
