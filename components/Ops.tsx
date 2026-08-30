@@ -12,8 +12,10 @@ import {
 } from "lucide-react";
 
 /**
- * Before -> Optimising -> After. The staged view is the whole argument:
- * the same parcels, a third of the vans.
+ * The entire argument, in one line: this many vans today, this many after
+ * consolidation. An earlier version walked through three labelled stages and
+ * a status word, which is more reading than a judge glancing at a screen for
+ * two seconds will do. Two numbers and an arrow say it faster.
  */
 export function ConsolidationFlow({
   status,
@@ -33,119 +35,107 @@ export function ConsolidationFlow({
   const optimising =
     status === "planning" || status === "devin_optimising" || status === "enriching";
   const done = status === "completed";
+  const removed = Math.max(0, baselineVans - usedVans);
 
   return (
-    <div className="kf-card flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
-      <Stage
-        state={done || optimising ? "done" : "current"}
-        title="Today"
-        value={`${baselineVans} vans`}
-        sub={`${companies} companies booking separately`}
-        icon={<Building2 className="h-3.5 w-3.5" />}
+    <div className="kf-card flex items-center gap-4 px-4 py-2.5">
+      <Side
+        label="Today"
+        value={`${baselineVans}`}
+        unit="vans"
+        sub={`${companies} companies, ${consignments} consignments`}
+        icon={<Building2 className="h-4 w-4" />}
+        tone="var(--kf-ink-3)"
       />
 
-      <Arrow active={optimising} />
-
-      <Stage
-        state={optimising ? "current" : done ? "done" : "idle"}
-        title="KanRoute"
-        value={optimising ? "Optimising" : "Planned"}
-        sub={
-          optimising
-            ? (detail ?? "Devin is writing and running the optimiser")
-            : `${consignments} consignments pooled`
-        }
-        icon={
-          optimising ? (
-            <Loader2 className="h-3.5 w-3.5 kf-spin" />
+      <span className="flex min-w-0 flex-1 flex-col items-center gap-1">
+        <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-[var(--kf-ink-3)]">
+          {optimising ? (
+            <>
+              <Loader2 className="h-3 w-3 kf-spin" style={{ color: "var(--kf-running)" }} />
+              {detail ? `Devin ${detail}` : "Devin optimising"}
+            </>
           ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )
-        }
-      />
+            <>
+              <Sparkles className="h-3 w-3" style={{ color: "var(--kf-accent)" }} />
+              consolidated by Devin
+            </>
+          )}
+        </span>
+        <span
+          className="h-px w-full"
+          style={{
+            background: optimising
+              ? "linear-gradient(90deg, transparent, var(--kf-running), transparent)"
+              : "linear-gradient(90deg, transparent, var(--kf-border-strong), transparent)",
+          }}
+        />
+      </span>
 
-      <Arrow active={done} />
-
-      <Stage
-        state={done ? "done" : "idle"}
-        title="Shared fleet"
-        value={done ? `${usedVans} vans` : "-"}
-        sub={
-          done
-            ? `${Math.max(0, baselineVans - usedVans)} vehicles off the road`
-            : "waiting for a proven plan"
-        }
-        icon={<Truck className="h-3.5 w-3.5" />}
-        highlight={done}
+      <Side
+        label="Shared fleet"
+        value={done ? `${usedVans}` : "-"}
+        unit="vans"
+        sub={done ? `${removed} vehicles off the road` : "waiting for a proven plan"}
+        icon={<Truck className="h-4 w-4" />}
+        tone={done ? "var(--kf-pass)" : "var(--kf-ink-3)"}
+        strong={done}
+        alignRight
       />
     </div>
   );
 }
 
-function Stage({
-  state,
-  title,
+function Side({
+  label,
   value,
+  unit,
   sub,
   icon,
-  highlight,
+  tone,
+  strong,
+  alignRight,
 }: {
-  state: "idle" | "current" | "done";
-  title: string;
+  label: string;
   value: string;
+  unit: string;
   sub: string;
   icon: React.ReactNode;
-  highlight?: boolean;
+  tone: string;
+  strong?: boolean;
+  alignRight?: boolean;
 }) {
-  const color =
-    state === "current"
-      ? "var(--kf-running)"
-      : state === "done"
-        ? highlight
-          ? "var(--kf-pass)"
-          : "var(--kf-ink-2)"
-        : "var(--kf-ink-3)";
   return (
-    <div className="flex min-w-[140px] items-start gap-2.5">
+    <div
+      className={`flex shrink-0 items-center gap-2.5 ${alignRight ? "flex-row-reverse text-right" : ""}`}
+    >
       <span
-        className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg"
         style={{
-          background: `color-mix(in srgb, ${color} 15%, var(--kf-mix))`,
-          color,
+          background: `color-mix(in srgb, ${tone} 15%, var(--kf-mix))`,
+          color: tone,
         }}
       >
         {icon}
       </span>
-      <span className="min-w-0">
-        <span className="block text-[9.5px] uppercase tracking-[0.12em] text-[var(--kf-ink-3)]">
-          {title}
+      <span>
+        <span className="block text-[9.5px] uppercase tracking-[0.13em] text-[var(--kf-ink-3)]">
+          {label}
         </span>
-        <span
-          className="block text-[17px] font-semibold leading-tight tabular-nums"
-          style={{ color: state === "idle" ? "var(--kf-ink-3)" : "var(--kf-ink)" }}
-        >
-          {value}
+        <span className="flex items-baseline gap-1" style={{ flexDirection: alignRight ? "row-reverse" : "row" }}>
+          <span
+            className="text-[26px] font-semibold leading-none tabular-nums"
+            style={{ color: strong ? "var(--kf-pass)" : "var(--kf-ink)" }}
+          >
+            {value}
+          </span>
+          <span className="text-[11px] font-medium text-[var(--kf-ink-2)]">{unit}</span>
         </span>
-        <span className="block truncate text-[10px] text-[var(--kf-ink-3)]">
+        <span className="mt-0.5 block whitespace-nowrap text-[10px] text-[var(--kf-ink-3)]">
           {sub}
         </span>
       </span>
     </div>
-  );
-}
-
-function Arrow({ active }: { active?: boolean }) {
-  return (
-    <span className="hidden flex-1 items-center sm:flex" aria-hidden="true">
-      <span
-        className="h-px w-full"
-        style={{
-          background: active
-            ? "linear-gradient(90deg, transparent, var(--kf-running), transparent)"
-            : "var(--kf-border)",
-        }}
-      />
-    </span>
   );
 }
 

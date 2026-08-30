@@ -1,8 +1,11 @@
 "use client";
 
+import { useQuery } from "convex/react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { api } from "@/convex/_generated/api";
+import type { Vehicle } from "@/components/Fleet";
 import { Panel } from "@/components/Shell";
 import { useConsole, useRouteSelection } from "@/components/useConsole";
 import { ROUTE_COLORS } from "@/lib/routeColors";
@@ -23,6 +26,7 @@ export default function MapView() {
   const { routes, shipments, done, stats } = useConsole();
   const { visible, selected, setSelected, mapRoutes, hidden, setHidden, toggle } =
     useRouteSelection(routes);
+  const fleet = useQuery(api.fleet.list, {}) as Vehicle[] | undefined;
   const [consolidated, setConsolidated] = useState(true);
 
   const allHidden = (routes ?? []).length > 0 && hidden.length === routes?.length;
@@ -130,6 +134,7 @@ export default function MapView() {
         <RouteMap
           shipments={shipments ?? []}
           routes={mapRoutes}
+          vehicles={fleet ?? []}
           consolidated={consolidated && done}
           visible={visible}
           selected={selected}

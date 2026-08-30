@@ -177,6 +177,7 @@ export default function Overview() {
           <RouteMap
             shipments={shipments ?? []}
             routes={mapRoutes}
+            vehicles={vehicles ?? []}
             consolidated={consolidated && done}
             visible={visible}
             selected={selected}

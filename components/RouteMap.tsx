@@ -42,6 +42,18 @@ export type MapRoute = {
   linkPath?: number[][];
 };
 
+export type MapVehicle = {
+  _id: string;
+  label: string;
+  plate: string;
+  driver: string;
+  zone: string;
+  status: "idle" | "en_route" | "completed";
+  progress: number;
+  stopsCompleted: number;
+  stopsTotal: number;
+};
+
 type LatLng = { lat: number; lng: number };
 type XY = { x: number; y: number };
 
@@ -111,6 +123,45 @@ function laneWidthKm(pts: XY[]): number {
   }
   const diag = Math.hypot(maxX - minX, maxY - minY) || 20;
   return Math.min(Math.max(diag * 0.015, 0.35), 2.2);
+}
+
+/**
+ * Where along a path a vehicle has got to. Walking the drawn geometry by
+ * cumulative length puts the truck on the road it is actually driving, rather
+ * than on a straight line between its stops.
+ */
+function pointAlong(
+  path: [number, number][],
+  fraction: number,
+): [number, number] | null {
+  if (path.length < 2) return path[0] ?? null;
+  const t = Math.max(0, Math.min(1, fraction));
+  const segs: number[] = [];
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    // Longitude degrees are shorter than latitude ones at this latitude;
+    // the correction keeps the walk proportional to real distance.
+    const d = Math.hypot(
+      path[i][0] - path[i - 1][0],
+      (path[i][1] - path[i - 1][1]) * 0.9,
+    );
+    segs.push(d);
+    total += d;
+  }
+  if (total === 0) return path[0];
+  const target = total * t;
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (acc + segs[i] >= target) {
+      const f = segs[i] === 0 ? 0 : (target - acc) / segs[i];
+      return [
+        path[i][0] + (path[i + 1][0] - path[i][0]) * f,
+        path[i][1] + (path[i + 1][1] - path[i][1]) * f,
+      ];
+    }
+    acc += segs[i];
+  }
+  return path[path.length - 1];
 }
 
 /** Stored geometry arrives as plain [lat, lng] pairs; reject anything that
@@ -262,6 +313,33 @@ function dropIcon(color: string, mode: Emphasis) {
   );
 }
 
+/**
+ * A vehicle running the plan. Colour ties it to its route, the bar under it
+ * is its stop progress, so a glance at the map answers "what is happening"
+ * without reading a single panel.
+ */
+function truckIcon(color: string, pct: number, done: boolean) {
+  const p = Math.max(0, Math.min(100, Math.round(pct / 5) * 5));
+  return cached(`t|${color}|${p}|${done}`, () =>
+    L.divIcon({
+      className: "",
+      html: `<div class="kr-truck${done ? " kr-truck-done" : ""}" style="--c:${color}">
+        <span class="kr-truck-badge">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none"
+               stroke="currentColor" stroke-width="2.1"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/>
+            <circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>
+          </svg>
+        </span>
+        <span class="kr-truck-bar"><i style="width:${p}%"></i></span>
+      </div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    }),
+  );
+}
+
 /** A supplier the shared fleet collects from, owned by no single route. */
 const hubIcon = () =>
   cached("hub", () =>
@@ -345,6 +423,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
 export function RouteMap({
   shipments,
   routes,
+  vehicles = [],
   consolidated,
   visible,
   selected,
@@ -352,6 +431,7 @@ export function RouteMap({
 }: {
   shipments: MapShipment[];
   routes: MapRoute[];
+  vehicles?: MapVehicle[];
   consolidated: boolean;
   visible: Record<string, boolean>;
   selected: string | null;
@@ -542,6 +622,22 @@ export function RouteMap({
   const drawn = consolidated
     ? built.filter((b) => visible[b.route.label] !== false)
     : [];
+
+  // Vehicles placed on the road geometry they are actually driving. Convex
+  // pushes each tick, so the trucks move on their own with no client timer.
+  const trucks = useMemo(() => {
+    if (!consolidated) return [];
+    const byLabel = new Map(built.map((b) => [b.route.label, b]));
+    return vehicles
+      .filter((v) => v.status !== "idle" && visible[v.label] !== false)
+      .map((v) => {
+        const b = byLabel.get(v.label);
+        if (!b) return null;
+        const at = pointAlong(b.legs, v.progress / 100);
+        return at ? { vehicle: v, at, color: b.color, zone: b.route.zone } : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+  }, [vehicles, built, visible, consolidated]);
   const active = drawn.find((b) => b.route.label === focus);
   const resting = drawn.filter((b) => b.route.label !== focus);
 
@@ -772,6 +868,26 @@ export function RouteMap({
               zIndexOffset={0}
             />
           ))}
+
+        {/* Vehicles on the road, above every line and every stop. */}
+        {trucks.map((t) => (
+          <Marker
+            key={`v-${t.vehicle._id}`}
+            position={t.at}
+            icon={truckIcon(
+              t.color,
+              t.vehicle.progress,
+              t.vehicle.status === "completed",
+            )}
+            zIndexOffset={800}
+            eventHandlers={hoverProps(t.vehicle.label)}
+          >
+            <Tooltip className="kr-zone" direction="top" offset={[0, -14]}>
+              {t.vehicle.plate} · {t.zone} · {t.vehicle.stopsCompleted}/
+              {t.vehicle.stopsTotal} stops
+            </Tooltip>
+          </Marker>
+        ))}
 
         {/* Drawn last so the anchor of the whole network sits on top. */}
         <Marker
