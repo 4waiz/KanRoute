@@ -116,7 +116,29 @@ function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
     if (points.length === 0) return;
-    map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 12 });
+
+    // The map lives in a flex/grid cell that settles after mount, so leaflet
+    // measures a stale size and fits to the wrong zoom. Re-measure first, and
+    // keep re-measuring while the panel resizes.
+    const fit = () => {
+      map.invalidateSize({ animate: false });
+      map.fitBounds(L.latLngBounds(points), { padding: [42, 42], maxZoom: 12 });
+    };
+
+    fit();
+    const t1 = window.setTimeout(fit, 120);
+    const t2 = window.setTimeout(fit, 420);
+
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+    ro.observe(map.getContainer());
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      ro.disconnect();
+    };
   }, [map, points]);
   return null;
 }
@@ -186,7 +208,7 @@ export function RouteMap({
         : DEPOT;
 
       // Fan successive routes apart, alternating side so they never stack.
-      const bend = (i % 2 === 0 ? 1 : -1) * (0.1 + (i % 4) * 0.045);
+      const bend = (i % 2 === 0 ? 1 : -1) * (0.05 + Math.floor(i / 2) * 0.028);
 
       const legs: [number, number][][] = [];
       let from: LatLng = DEPOT;
