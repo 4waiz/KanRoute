@@ -39,11 +39,11 @@ One engineering detail worth noting: we established before building that `struct
 
 ## Repository
 
-https://github.com/4waiz/KanForge
+https://github.com/4waiz/KanRoute
 
 ## Demo link
 
-https://kanforge.vercel.app
+https://kanroute.vercel.app
 
 ## Video link
 
