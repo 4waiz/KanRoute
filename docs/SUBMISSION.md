@@ -53,7 +53,7 @@ https://github.com/4waiz/KanRoute
 
 ## Demo link
 
-https://kanroute-uae.vercel.app
+https://kanroute-ae.vercel.app
 
 ## Video link
 

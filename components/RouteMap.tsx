@@ -249,6 +249,17 @@ function dropIcon(color: string, mode: Emphasis) {
   );
 }
 
+/** A supplier the shared fleet collects from, owned by no single route. */
+const hubIcon = () =>
+  cached("hub", () =>
+    L.divIcon({
+      className: "",
+      html: `<div class="kr-hub"></div>`,
+      iconSize: [10, 10],
+      iconAnchor: [5, 5],
+    }),
+  );
+
 const depotIcon = () =>
   cached("depot", () =>
     L.divIcon({
@@ -419,16 +430,46 @@ export function RouteMap({
         -lane * laneKm * 0.8,
       ).map(toLatLng);
 
+      // At rest a route is drawn as its depot-to-zone link alone. Every route
+      // collects from the same handful of suppliers spread across the city, so
+      // eight full pickup tours drawn at once collapse into one tangle that
+      // says nothing. The link says the thing that actually differs — which
+      // zone this vehicle serves — and the full sequence is one hover away.
+      const spine = offsetPath(
+        roundCorners([toXY(DEPOT), depotGate(dropXY, lane), dropXY]),
+        lane * laneKm,
+      ).map(toLatLng);
+
       return {
         route: r,
         color: ROUTE_COLORS[i % ROUTE_COLORS.length],
         pickups: ordered,
         drop,
+        spine,
         legs,
         returnLeg,
       };
     });
   }, [routes, byRef, laneKm]);
+
+  // The suppliers themselves, deduplicated. Drawn per route they stack four
+  // deep on the same coordinates, which was a large part of the clutter: the
+  // shared fleet collects from one set of suppliers, so it is drawn once.
+  const pickupHubs = useMemo(() => {
+    const seen = new Map<string, { lat: number; lng: number; names: Set<string> }>();
+    for (const s of shipments) {
+      const key = `${s.originLat},${s.originLng}`;
+      const hit = seen.get(key);
+      if (hit) hit.names.add(s.supplierName);
+      else
+        seen.set(key, {
+          lat: s.originLat,
+          lng: s.originLng,
+          names: new Set([s.supplierName]),
+        });
+    }
+    return [...seen.values()];
+  }, [shipments]);
 
   // One dedicated van per consignment: the status quo this product exists to
   // replace. The tangle is the argument, so it is drawn plainly and faintly.
@@ -529,18 +570,18 @@ export function RouteMap({
             </Polyline>
           ))}
 
-        {/* Casing under every resting route. A dark outline is what stops
+        {/* Casing under every resting link. A dark outline is what stops
             crossings reading as one tangled mesh. */}
         <Pane name={P_CASING} style={{ zIndex: 405 }}>
           {resting.map((b) => (
             <Polyline
               key={`c-${b.route.label}`}
-              positions={b.legs}
+              positions={b.spine}
               interactive={false}
               pathOptions={{
                 color: "#080a0c",
-                weight: focus ? 4.4 : 5.6,
-                opacity: focus ? 0.34 : 0.62,
+                weight: focus ? 3.4 : 4.4,
+                opacity: focus ? 0.3 : 0.55,
                 lineCap: "round",
                 lineJoin: "round",
               }}
@@ -552,18 +593,19 @@ export function RouteMap({
           {resting.map((b) => (
             <Polyline
               key={`r-${b.route.label}`}
-              positions={b.legs}
+              positions={b.spine}
               pathOptions={{
                 color: b.color,
-                weight: focus ? 1.9 : 2.6,
-                opacity: focus ? 0.28 : 0.82,
+                weight: focus ? 1.6 : 2.2,
+                opacity: focus ? 0.24 : 0.78,
                 lineCap: "round",
                 lineJoin: "round",
               }}
               eventHandlers={hoverProps(b.route.label)}
             >
               <Tooltip className="kr-zone" sticky>
-                {b.route.zone} · {b.route.distanceKm} km · {b.route.loadKg} kg
+                {b.route.zone} · {b.pickups.length} stops · {b.route.distanceKm}{" "}
+                km · {b.route.loadKg} kg
               </Tooltip>
             </Polyline>
           ))}
@@ -630,49 +672,68 @@ export function RouteMap({
         </Pane>
 
         {/* Markers live in leaflet's marker pane, above every route line. */}
+
+        {/* The shared supplier set, drawn once and neutrally. These belong to
+            the fleet as a whole, not to any one vehicle. */}
+        {consolidated &&
+          !active &&
+          pickupHubs.map((p) => (
+            <Marker
+              key={`hub-${p.lat},${p.lng}`}
+              position={[p.lat, p.lng]}
+              icon={hubIcon()}
+              zIndexOffset={200}
+            >
+              <Tooltip className="kr-zone">{[...p.names].join(" · ")}</Tooltip>
+            </Marker>
+          ))}
+
+        {/* One diamond per consolidated zone: eight vehicles, eight drops. */}
         {consolidated &&
           drawn.map((b) => {
             const mode: Emphasis =
               b.route.label === focus ? "full" : focus ? "dim" : "quiet";
             return (
-              <Fragment key={`m-${b.route.label}`}>
-                {b.pickups.map((p, idx) => (
-                  <Marker
-                    key={`${b.route.label}-p-${idx}`}
-                    position={[p.lat, p.lng]}
-                    icon={stopIcon(b.color, String(idx + 1), mode)}
-                    zIndexOffset={mode === "full" ? 400 : 0}
-                    eventHandlers={hoverProps(b.route.label)}
-                  >
-                    <Popup>
-                      <strong>
-                        {b.route.label} · stop {idx + 1}
-                      </strong>
-                      <br />
-                      {p.names.join(", ")}
-                    </Popup>
-                  </Marker>
-                ))}
-                <Marker
-                  position={[b.drop.lat, b.drop.lng]}
-                  icon={dropIcon(b.color, mode)}
-                  zIndexOffset={mode === "full" ? 500 : 100}
-                  eventHandlers={hoverProps(b.route.label)}
+              <Marker
+                key={`drop-${b.route.label}`}
+                position={[b.drop.lat, b.drop.lng]}
+                icon={dropIcon(b.color, mode)}
+                zIndexOffset={mode === "full" ? 500 : 100}
+                eventHandlers={hoverProps(b.route.label)}
+              >
+                {/* Zone names only pin for the focused route; shown all at
+                    once they overlap into an unreadable stack. */}
+                <Tooltip
+                  className="kr-zone"
+                  permanent={mode === "full"}
+                  direction="top"
+                  offset={[0, -11]}
                 >
-                  {/* Zone names only pin for the focused route; shown all at
-                      once they overlap into an unreadable stack. */}
-                  <Tooltip
-                    className="kr-zone"
-                    permanent={mode === "full"}
-                    direction="top"
-                    offset={[0, -11]}
-                  >
-                    {b.route.zone}
-                  </Tooltip>
-                </Marker>
-              </Fragment>
+                  {b.route.zone}
+                </Tooltip>
+              </Marker>
             );
           })}
+
+        {/* The focused route's own pickup sequence, numbered in its colour. */}
+        {consolidated &&
+          active?.pickups.map((p, idx) => (
+            <Marker
+              key={`stop-${active.route.label}-${idx}`}
+              position={[p.lat, p.lng]}
+              icon={stopIcon(active.color, String(idx + 1), "full")}
+              zIndexOffset={400}
+              eventHandlers={hoverProps(active.route.label)}
+            >
+              <Popup>
+                <strong>
+                  {active.route.label} · stop {idx + 1}
+                </strong>
+                <br />
+                {p.names.join(", ")}
+              </Popup>
+            </Marker>
+          ))}
 
         {!consolidated &&
           baseline.map((b) => (
@@ -703,12 +764,19 @@ export function RouteMap({
         </span>
         <span>
           <i className="kr-key-stop" />
-          Pickup
+          Supplier
         </span>
         <span>
           <i className="kr-key-drop" />
-          Drop
+          Drop zone
         </span>
+        {consolidated && (
+          <span className="kr-hint">
+            {active
+              ? `${active.route.zone} · full pickup sequence`
+              : "Hover a zone for its full route"}
+          </span>
+        )}
       </div>
       <div className="kr-attrib">Esri · HERE · Garmin · OpenStreetMap</div>
     </div>

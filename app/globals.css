@@ -274,6 +274,16 @@ body {
   box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.92), 0 2px 8px rgba(0, 0, 0, 0.55);
 }
 
+/* A supplier the whole fleet collects from: neutral, because it belongs to
+   no single route. Hollow so it never competes with a coloured drop. */
+.kr-hub {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(238, 241, 243, 0.9);
+  box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.92), 0 0 0 4.5px rgba(238, 241, 243, 0.18);
+}
+
 /* Every other stop: present and countable, but quiet. */
 .kr-dot {
   width: 9px;
@@ -372,6 +382,16 @@ body {
   border-radius: 2px;
   background: var(--kf-mint);
   transform: rotate(45deg);
+}
+
+/* Tells the reader what the resting lines are, so the simplification is
+   stated rather than assumed. */
+.kr-hint {
+  padding-left: 9px;
+  margin-left: 2px;
+  border-left: 1px solid var(--kf-border);
+  color: var(--kf-ink-3);
+  font-weight: 500;
 }
 
 .kr-attrib {

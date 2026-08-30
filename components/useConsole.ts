@@ -105,7 +105,18 @@ export type TraceEvent = {
 /** Shared reactive state for every console view. */
 export function useConsole() {
   const stats = useQuery(api.stats.summary, {}) as Summary | undefined;
-  const latest = useQuery(api.runs.latest, {}) as RunDoc | null | undefined;
+
+  // `newest` drives the status banner, `latest` drives everything drawn.
+  // Separating them is what stops a replan that is still optimising - or one
+  // that stalls - from wiping the board: the last proven plan stays on screen
+  // until a new one is proven.
+  const newest = useQuery(api.runs.latest, {}) as RunDoc | null | undefined;
+  const completed = useQuery(api.runs.latestCompleted, {}) as
+    | RunDoc
+    | null
+    | undefined;
+
+  const latest = newest?.status === "completed" ? newest : (completed ?? newest);
   const runId = latest?._id as Id<"runs"> | undefined;
 
   const suppliers = useQuery(api.suppliers.list, {}) as SupplierDoc[] | undefined;
@@ -122,7 +133,23 @@ export function useConsole() {
 
   const done = latest?.status === "completed";
 
-  return { stats, latest, runId, suppliers, shipments, routes, events, done };
+  // A run newer than the one on screen, still working: the agent is replanning
+  // against the plan you are looking at.
+  const replanning =
+    !!newest && newest._id !== latest?._id && newest.status !== "failed";
+
+  return {
+    stats,
+    latest,
+    newest: newest ?? undefined,
+    replanning,
+    runId,
+    suppliers,
+    shipments,
+    routes,
+    events,
+    done,
+  };
 }
 
 /** Route visibility and isolation, shared by the map-bearing views. */

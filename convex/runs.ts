@@ -248,6 +248,28 @@ export const latest = query({
   },
 });
 
+/**
+ * The newest run that actually produced a plan.
+ *
+ * The console reads its data from here rather than from the newest run of
+ * any kind. A replan that is still optimising - or one that stalls - must
+ * never blank the board: operators keep looking at the last proven plan
+ * until a new one is proven, which is also what makes the disruption demo
+ * safe to run live.
+ */
+export const latestCompleted = query({
+  args: {},
+  returns: v.any(),
+  handler: async (ctx) => {
+    const rows = await ctx.db
+      .query("runs")
+      .withIndex("by_createdAt")
+      .order("desc")
+      .take(25);
+    return rows.find((r) => r.status === "completed") ?? null;
+  },
+});
+
 export const shipments = query({
   args: { runId: v.id("runs") },
   returns: v.array(v.any()),

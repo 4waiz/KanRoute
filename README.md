@@ -6,7 +6,7 @@ Dubai's roads carry thousands of half-empty delivery vehicles every day. Three s
 
 KanRoute finds those compatible deliveries, consolidates them, and **proves the resulting plan is operable** before anyone acts on it.
 
-**Live:** https://kanroute-uae.vercel.app · **Repo:** https://github.com/4waiz/KanRoute
+**Live:** https://kanroute-ae.vercel.app · **Repo:** https://github.com/4waiz/KanRoute
 
 ---
 
