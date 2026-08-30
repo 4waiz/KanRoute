@@ -60,7 +60,7 @@ Show a PASS claim (HMAC SHA-256 signing), then a HUMAN REVIEW claim.
 - [ ] `https://kanforge.vercel.app/demo-target` returns 200 publicly (Context.dev must reach it)
 - [ ] `https://kanforge.vercel.app/api/demo/health` returns `{"status":"ok",...}`
 - [ ] Convex dashboard reachable; `CONTEXT_DEV_API_KEY`, `DEVIN_API_KEY`, `DEVIN_ORG_ID` all set
-- [ ] Context.dev credits remaining (extraction costs 10 per run)
+- [ ] Context.dev credits remaining (extraction costs 10 per run; hackathon code raised the balance to 3,218 and the rate limit to 60 req/min)
 - [ ] Devin credit balance non-zero
 - [ ] A pre-run analysis is available as a fallback if live Devin is slow
 
@@ -73,7 +73,7 @@ Measured on the real pipeline:
 | Context.dev extraction (6 claims, 1 page) | ~23 s |
 | Devin FAIL verification (webhook retries) | ~92 s, 0 ACUs |
 
-The 7-day `maxAgeMs` cache makes a repeated extraction against the same URL noticeably faster (~10s vs ~23s measured), because Context.dev reuses the upstream crawl. It still costs 10 credits per call — budget one extraction per rehearsal. This is a real API response every time, never substituted fixture data.
+The 7-day `maxAgeMs` cache makes a repeated extraction against the same URL noticeably faster (~10s vs ~23s measured), because Context.dev reuses the upstream crawl. It still costs 10 credits per call, but with 3,218 credits that is roughly 320 runs — rehearse freely. This is a real API response every time, never substituted fixture data.
 
 ## If something fails live
 

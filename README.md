@@ -135,11 +135,15 @@ Names only — no values appear in this repository.
 ## Limitations
 
 - Public GitHub repositories only. Private-repo OAuth is out of scope for this build.
-- Context.dev `/web/extract` sets `maxAgeMs` to 7 days, so repeated runs against the same URL reuse the upstream crawl and return faster (~10s vs ~23s measured). Note this speeds up repeat runs but **still consumes 10 credits per call** — it is upstream crawl caching, not free replay, and never fixture substitution.
+- Context.dev `/web/extract` sets `maxAgeMs` to 7 days, so repeated runs against the same URL reuse the upstream crawl and return faster (~10s vs ~23s measured). This speeds up repeat runs but **still consumes 10 credits per call** — it is upstream crawl caching, not free replay, and never fixture substitution.
 - Devin verdicts are only as good as Devin's inspection. KanForge records the `limitations` the agent reports rather than hiding them.
 - A claim can be *correctly* classified `human_review` and still be true. KanForge reports what it can prove, not what is true.
 - The board verifies one claim at a time by design, to bound agent spend.
 
 ## Hackathon disclosure
 
-Built during **TheBlock. Hackathon, Dubai**, in accordance with event rules. All product code in this repository was written during the event. Before the event started, work was limited to account setup, credential provisioning, and reading current API documentation; the repository contained no product code at the start gun.
+Built during the **Collabute X TheBlock. Hackathon**, Dubai — a one-day AI hackathon on 30 August 2026 (10:30-17:00 GST), in accordance with event rules.
+
+All product code in this repository was written during the event. Before the event started, work was limited to account setup, credential provisioning, and reading current API documentation; the repository contained no product code at the start gun (its only commit was an empty initialisation commit).
+
+The event requires all three partner technologies to be used meaningfully. In KanForge each is load-bearing: remove Context.dev and there is no grounded claim to test, remove Convex and there is no orchestration or realtime state, remove Devin and there is no proof — only opinion.

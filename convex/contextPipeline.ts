@@ -126,7 +126,9 @@ export const runExtraction = internalAction({
           url: analysis.websiteUrl,
           schema: CLAIM_SCHEMA,
           instructions: INSTRUCTIONS,
-          maxPages: 3,
+          // extract() is billed flat per call regardless of maxPages, so this
+          // buys coverage on real multi-page docs sites at no extra credit cost.
+          maxPages: 6,
           // 7-day upstream cache: repeated rehearsals reuse the same crawl, which
           // roughly halves latency. Still billed at 10 credits per call.
           maxAgeMs: 604800000,
