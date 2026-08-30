@@ -9,10 +9,12 @@
  */
 
 import type * as events from "../events.js";
+import type * as fleet from "../fleet.js";
 import type * as geo from "../geo.js";
 import type * as optimiser from "../optimiser.js";
 import type * as reenrich from "../reenrich.js";
 import type * as runs from "../runs.js";
+import type * as stats from "../stats.js";
 import type * as suppliers from "../suppliers.js";
 
 import type {
@@ -23,10 +25,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   events: typeof events;
+  fleet: typeof fleet;
   geo: typeof geo;
   optimiser: typeof optimiser;
   reenrich: typeof reenrich;
   runs: typeof runs;
+  stats: typeof stats;
   suppliers: typeof suppliers;
 }>;
 

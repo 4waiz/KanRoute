@@ -124,6 +124,37 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_runId", ["runId"]),
 
+  /**
+   * A vehicle executing one consolidated route. Progress is advanced by a
+   * scheduled tick so the board shows live movement; the underlying plan and
+   * distances are real, the dispatch clock is simulated.
+   */
+  vehicles: defineTable({
+    runId: v.id("runs"),
+    routeId: v.id("routes"),
+    label: v.string(),
+    plate: v.string(),
+    driver: v.string(),
+    zone: v.string(),
+    status: v.union(
+      v.literal("idle"),
+      v.literal("en_route"),
+      v.literal("completed"),
+    ),
+    stopsTotal: v.number(),
+    stopsCompleted: v.number(),
+    loadKg: v.number(),
+    distanceKm: v.number(),
+    baselineKm: v.number(),
+    shipmentRefs: v.array(v.string()),
+    windowStart: v.optional(v.string()),
+    windowEnd: v.optional(v.string()),
+    startedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_runId", ["runId"])
+    .index("by_status", ["status"]),
+
   events: defineTable({
     runId: v.optional(v.id("runs")),
     supplierId: v.optional(v.id("suppliers")),

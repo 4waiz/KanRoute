@@ -102,3 +102,14 @@ export function geocodeAddress(
   }
   return null;
 }
+
+/**
+ * Indicative all-in operating cost for a light commercial vehicle in the UAE,
+ * covering fuel, driver time, maintenance and depreciation. Used only to put
+ * an approximate dirham figure on distance removed; it is an estimate and the
+ * rate is shown alongside the number in the UI.
+ */
+export const OPERATING_COST_AED_PER_KM = 2.2;
+
+/** Indicative average urban speed for a delivery van in Dubai traffic. */
+export const AVG_SPEED_KMH = 32;
