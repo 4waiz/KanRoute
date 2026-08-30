@@ -1,37 +1,41 @@
-# KanForge - Submission
+# LoadShare UAE - Submission
 
-Copy-paste answers for the submission form at **https://collabute-hackathon.vercel.app**
+Copy-paste answers for **https://collabute-hackathon.vercel.app**
 Deadline: **17:00 GST, 30 August 2026** (strict).
 
 ---
 
 ## Project name
 
-KanForge
+LoadShare UAE
 
 ## One-line description
 
-KanForge turns technical product claims into executable evidence - it extracts the claims a company publishes, decides which ones can actually be proven, and has Devin inspect the repository and run a test to settle them.
+LoadShare consolidates fragmented last-mile deliveries in Dubai by reading each supplier's real goods-receiving hours from their own website, then having an autonomous engineer build and prove a consolidated routing plan.
 
 ## Problem being solved
 
-Every software company publishes technical claims: retry counts, signing algorithms, endpoint behaviour, rate limits, uptime, compliance. Documentation drifts from implementation constantly - a retry budget gets lowered in a hotfix, the docs never get updated, and nobody notices until an integration breaks in production. Checking that documentation still matches implementation is slow, manual, and nobody's job. Tools that "check docs with AI" ask a model whether text looks plausible, which detects nothing, because a false claim reads exactly like a true one.
+Dubai's roads carry thousands of half-empty delivery vans every day. Three separate vehicles drive to Jumeirah Lake Towers carrying a few hundred kilos each, at overlapping times, because every supplier books its own courier and no system knows those deliveries are compatible. The result is more vehicles, more fuel, more congestion, more emissions and a higher cost per parcel, in a city whose commercial transport strategy explicitly targets operational efficiency and lower emissions.
+
+Consolidation is not a new idea. It does not happen because it depends on data nobody holds centrally: when can each supplier actually release goods? Those receiving hours sit on company websites in inconsistent formats. Without them, a consolidation plan is a guess, and an unusable plan is worse than no plan at all.
 
 ## Target users
 
-Developer relations and technical writing teams who own public API documentation; platform and API teams shipping changes that silently invalidate published behaviour; technical due diligence teams assessing whether a product does what it advertises; and security or compliance reviewers who need to separate claims that are testable from claims that require attestation.
-
-## How Devin was used
-
-Devin is a runtime component of KanForge, not a coding assistant we used to build it. When a user verifies an executable claim, Convex opens a Devin v3 session via `POST /v3/organizations/{org_id}/sessions`, authenticated as a dedicated service user ("KanForge Verifier", Member role) whose GitHub App installation is scoped to a single repository. The session receives a strict verify-don't-implement prompt, the repository in both `repos` and the prompt text, a `structured_output_schema` that Devin validates server-side, and a `max_acu_limit` spend cap. Devin clones the repository, reads the implementation, writes a temporary test in its own isolated workspace, runs it, and returns a structured verdict with commands, files inspected, tests created, expected vs observed values, and its own limitations. On the live demo it proved the webhook-retry claim false by compiling a TypeScript test against a permanently failing transport and counting the actual attempts - documented 3 retries, observed 2. We also discovered empirically that `structured_output_required: true` does not reliably force structured output, so KanForge implements a bounded poll/nudge state machine: at most one follow-up demanding `provide_structured_output(is_final=true)`, at most forty polls, then escalation to HUMAN_REVIEW.
-
-## How Convex was used
-
-Convex is the backend, orchestration layer, and realtime spine - not just storage. Five tables (`analyses`, `claims`, `verificationJobs`, `evidence`, `events`) with purpose-built indexes. The architecture follows Convex's model strictly: mutations capture intent and write durable state, the scheduler hands external work to actions, actions perform network I/O and write results back through internal mutations, and the UI renders from reactive queries with no client polling. This is what makes a multi-minute agent verification feel instant - `verifyClaim` returns immediately and the proof board animates forward on its own as the scheduler drives the job. Convex also holds every API key server-side so no secret reaches the browser, and its transactional mutations make VERIFY idempotent against double-clicks. The `events` table is what powers the Technology Trace: every provider call writes a real, timestamped, provider-tagged record, so the trace is derived from recorded activity rather than reconstructed in the UI.
+Third-party logistics operators and courier networks running Dubai last-mile fleets; retail and FMCG distributors consolidating inbound supplier collections; free-zone and industrial-park operators managing vehicle movements; and sustainability teams that must evidence fleet emissions reductions rather than estimate them.
 
 ## How Context.dev was used
 
-Context.dev is the entry point of the pipeline and the reason claims are source-grounded rather than paraphrased. We integrated the official `@context-dot-dev/convex` component, registered in `convex/convex.config.ts` with a typed environment contract so the API key exists only on the Convex deployment. A Convex action calls `/web/extract` with a JSON Schema describing a technical claim, so Context.dev crawls the target and returns objects already matching our shape - claim text, verbatim source excerpt, source URL, category, expected behaviour, suggested verification strategy, and confidence. KanForge performs no free-text parsing. The extraction instructions force conservative classification: compliance certifications and uptime SLAs are never allowed to be `executable`. On the live run this produced exactly the right split - the health endpoint, webhook retry, and HMAC signing claims were classified executable, while SOC 2, the 99.99% SLA, and "most loved platform" were correctly refused with stated reasons. `maxPages` bounds the crawl and `maxAgeMs` (7 days) reuses the upstream crawl on repeat runs to cut latency.
+Context.dev supplies the constraint that makes consolidation legal. Using the official `@context-dot-dev/convex` component, registered in `convex/convex.config.ts` with a typed environment contract so the key exists only on the Convex deployment, a Convex action calls `/web/extract` against each supplier's own website with a JSON Schema for UAE address, emirate, goods-receiving hours and any stated delivery constraint. Two consignments can only share a vehicle if their pickup windows overlap, so these hours determine the entire plan. On the live run it returned real Dubai locations, Aramex on Airport Road in Umm Ramool receiving 08:00-21:00, Al Maya Group in National Industries Park, Jebel Ali receiving 08:00-17:00, and Jumbo Electronics in Al Ghurair Centre, Deira. It also reported honestly where a company publishes only general opening hours rather than dedicated receiving hours, and that caveat is surfaced in the UI rather than hidden. The extracted address is then matched to a Dubai district coordinate so distances are computed from real locations. Remove Context.dev and every time window in the system becomes an invention.
+
+## How Convex was used
+
+Convex is the backend, the orchestration layer and the live operational picture. Five tables (`suppliers`, `shipments`, `runs`, `routes`, `events`) with purpose-built indexes hold the state. The architecture follows the Convex model strictly: mutations capture intent and write durable state, the scheduler hands external work to actions, actions perform network I/O and write results back through internal mutations, and the UI renders from reactive queries with no client polling. This is what lets a multi-minute agent optimisation feel immediate, the run returns instantly and the board animates forward as the scheduler drives it. Convex also holds every API key server-side so nothing sensitive reaches the browser, and the `events` table is what makes the live activity feed a record of real provider calls rather than a decorative animation.
+
+## How Devin was used
+
+Devin is the routing engineer, at runtime, not a coding assistant we used to build the app. When a run starts, Convex opens a Devin v3 session authenticated as a dedicated service user with the Member role, passing the consignment set, vehicle capacity, depot, and the real pickup windows from Context.dev, together with a `structured_output_schema` and a `max_acu_limit` spend cap. Devin writes a consolidation optimiser, executes it, then writes a **separate independent constraint checker** and executes that too, returning the checker's verbatim stdout. On the live run it produced a Python optimiser doing an exhaustive per-zone partition search under capacity and window-intersection constraints, and a checker that verified capacity, minimum 60-minute window overlap, single drop zone, and complete non-duplicated coverage, printing `PASS` per route and `RESULT ALL ROUTES FEASIBLE`. Twelve vans became five routes, 898.28 km became 702.52 km. Every number on the dashboard is computed and verified by executed code rather than asserted by a model.
+
+One engineering detail worth noting: we established before building that `structured_output_required: true` does not reliably force structured output, since a session can answer in chat and park at `waiting_for_user`. LoadShare therefore implements a bounded poll and nudge state machine, at most one follow-up demanding `provide_structured_output(is_final=true)`, at most forty polls, then a clean failure. No infinite loops and no fabricated plan.
 
 ## Repository
 
@@ -41,36 +45,25 @@ https://github.com/4waiz/KanForge
 
 https://kanforge.vercel.app
 
-Synthetic demo target: https://kanforge.vercel.app/demo-target
-
 ## Video link
 
-_(optional - add if recorded)_
+_(optional, add if recorded)_
 
 ## Pre-existing asset disclosure
 
-All product code in this repository was written during the hackathon. Before the event began, work was limited to account creation, credential provisioning, and reading current API documentation; the repository contained no product code at the start of the event (its only commit was an empty initialisation commit).
+All product code in this repository was written during the hackathon. Before the event, work was limited to account creation, credential provisioning and reading current API documentation.
+
+Supplier addresses and receiving hours are read live from each company's public website and are real. Consignment volumes, weights and destinations are synthetic test data, per event rules. No affiliation with, or endorsement by, the named businesses is implied.
 
 Third-party dependencies are standard open-source packages: Next.js, React, Tailwind CSS, Convex, `@context-dot-dev/convex`, `lucide-react`, and `zod`.
 
-**ForgeRelay**, the demo target, is a fictional company invented for this project. It does not describe, impersonate, or reference any real company or product, and is labelled as synthetic everywhere it appears. All data used is synthetic.
-
 ---
 
-## Judging criteria - how KanForge maps
+## Three-minute demo order
 
-| Criterion | Weight | KanForge |
-| --- | --- | --- |
-| Product Value | 25% | Solves documentation drift, a real and unmeasured problem, with an output (evidence) that is directly actionable. |
-| Technical Execution | 25% | Bounded agent orchestration, idempotent jobs, schema-validated verdicts, zero client-side secrets, clean build and lint. |
-| Partner Integration | 25% | All three are load-bearing: remove any one and the product stops working. Made visible in-product via the pipeline strip and Technology Trace. |
-| Innovation | 15% | Executes claims instead of scoring them, and refuses to fake verification it cannot perform. |
-| Demonstration & Clarity | 10% | Board opens with the finding in plain English; deterministic FAIL makes the demo reproducible. |
-
-## Three-minute presentation order
-
-1. **Problem** - docs drift from code; nobody checks.
-2. **Product** - "KanForge doesn't ask an AI whether a claim sounds credible. It runs the claim."
-3. **Working functionality** - Load demo target, Analyze (live Context.dev), Verify (live Devin), FAIL with documented vs observed, open the evidence.
-4. **Partner tools** - Technology Trace showing real Context.dev, Convex, and Devin events in order.
-5. **Impact** - continuous claim verification and technical due diligence.
+1. **Problem, 25s.** Three vans to JLT, half empty, overlapping windows. Dubai's transport strategy targets exactly this.
+2. **Supplier network, 35s.** Press Load supplier network. Context.dev reads real company websites and returns Dubai addresses and receiving hours, including an honest note where only opening hours are published.
+3. **Consolidate, 30s.** Press Consolidate. Convex creates the run and hands it to Devin.
+4. **The plan, 45s.** 12 vans become 5 routes. Toggle the map Before and After. 195.8 km removed, 49 kg CO2 avoided.
+5. **The proof, 45s.** Scroll to the feasibility proof. This is the verbatim stdout of a constraint checker Devin wrote and ran, verifying capacity, window overlap and full coverage. Open the Devin session link.
+6. **Close, 20s.** Fewer vans, same deliveries, and a plan you can verify rather than trust.
