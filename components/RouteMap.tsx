@@ -34,6 +34,12 @@ export type MapRoute = {
   shipmentRefs: string[];
   distanceKm: number;
   loadKg: number;
+  /** Real driving geometry, resolved server-side when the plan was saved.
+   *  roadPath is the full pickup sequence, linkPath the depot-to-zone run.
+   *  Absent only if the routing service could not resolve the route, in
+   *  which case the map falls back to geometry it computes itself. */
+  roadPath?: number[][];
+  linkPath?: number[][];
 };
 
 type LatLng = { lat: number; lng: number };
@@ -105,6 +111,13 @@ function laneWidthKm(pts: XY[]): number {
   }
   const diag = Math.hypot(maxX - minX, maxY - minY) || 20;
   return Math.min(Math.max(diag * 0.015, 0.35), 2.2);
+}
+
+/** Stored geometry arrives as plain [lat, lng] pairs; reject anything that
+ *  did not resolve so the caller falls back cleanly. */
+function asPath(raw?: number[][]): [number, number][] | null {
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  return raw.map((p) => [p[0], p[1]] as [number, number]);
 }
 
 const sub = (a: XY, b: XY): XY => ({ x: a.x - b.x, y: a.y - b.y });
@@ -420,25 +433,40 @@ export function RouteMap({
       const dropXY = toXY(drop);
       const outward = stopsXY[0] ?? dropXY;
 
-      const legs = offsetPath(
-        roundCorners([toXY(DEPOT), depotGate(outward, lane), ...stopsXY, dropXY]),
-        lane * laneKm,
-      ).map(toLatLng);
+      // Real road geometry wherever it resolved. It is drawn exactly as the
+      // router returned it — no lane offset — because a line nudged sideways
+      // to look tidy is a line that is no longer on the road. Routes sharing
+      // an arterial genuinely overlap there, which is the truth and is what
+      // every real fleet map shows; the casing and the focus state are what
+      // keep them readable.
+      const road = asPath(r.roadPath);
+      const link = asPath(r.linkPath);
 
-      const returnLeg = offsetPath(
-        roundCorners([dropXY, depotGate(dropXY, -lane), toXY(DEPOT)]),
-        -lane * laneKm * 0.8,
-      ).map(toLatLng);
+      const legs =
+        road ??
+        offsetPath(
+          roundCorners([toXY(DEPOT), depotGate(outward, lane), ...stopsXY, dropXY]),
+          lane * laneKm,
+        ).map(toLatLng);
+
+      const returnLeg = road
+        ? [...road].reverse()
+        : offsetPath(
+            roundCorners([dropXY, depotGate(dropXY, -lane), toXY(DEPOT)]),
+            -lane * laneKm * 0.8,
+          ).map(toLatLng);
 
       // At rest a route is drawn as its depot-to-zone link alone. Every route
       // collects from the same handful of suppliers spread across the city, so
       // eight full pickup tours drawn at once collapse into one tangle that
       // says nothing. The link says the thing that actually differs — which
       // zone this vehicle serves — and the full sequence is one hover away.
-      const spine = offsetPath(
-        roundCorners([toXY(DEPOT), depotGate(dropXY, lane), dropXY]),
-        lane * laneKm,
-      ).map(toLatLng);
+      const spine =
+        link ??
+        offsetPath(
+          roundCorners([toXY(DEPOT), depotGate(dropXY, lane), dropXY]),
+          lane * laneKm,
+        ).map(toLatLng);
 
       return {
         route: r,

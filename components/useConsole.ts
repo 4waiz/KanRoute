@@ -79,6 +79,8 @@ export type RouteDoc = {
   shipmentRefs: string[];
   companies?: string[];
   rationale?: string;
+  roadPath?: number[][];
+  linkPath?: number[][];
 };
 
 export type SupplierDoc = {
@@ -171,6 +173,8 @@ export function useRouteSelection(routes: RouteDoc[] | undefined) {
         shipmentRefs: r.shipmentRefs,
         distanceKm: r.distanceKm,
         loadKg: r.loadKg,
+        roadPath: r.roadPath,
+        linkPath: r.linkPath,
       })),
     [routes],
   );

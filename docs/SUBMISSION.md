@@ -65,7 +65,7 @@ All product code in this repository was written during the hackathon. Before the
 
 Supplier addresses and receiving hours are read live from each company's public website and are real. Consignment volumes, weights and destinations are synthetic test data. No affiliation with, or endorsement by, the named businesses is implied. Vehicle movement is a simulated dispatch clock advancing real Convex state; the plan, distances and savings are not simulated.
 
-Third-party dependencies are standard open-source packages: Next.js, React, Tailwind CSS, Convex, `@context-dot-dev/convex`, `leaflet`, `react-leaflet`, `lucide-react` and `zod`. Map tiles are Esri dark canvas (Esri, HERE, Garmin, OpenStreetMap contributors).
+Third-party dependencies are standard open-source packages: Next.js, React, Tailwind CSS, Convex, `@context-dot-dev/convex`, `leaflet`, `react-leaflet`, `lucide-react` and `zod`. Map tiles are Esri dark canvas (Esri, HERE, Garmin, OpenStreetMap contributors). Route lines follow real road geometry from the public OSRM demo server, resolved once per plan and stored; the reported distances remain haversine with a 1.35 urban detour factor.
 
 ---
 

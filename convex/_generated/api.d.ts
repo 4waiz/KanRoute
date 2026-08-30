@@ -14,6 +14,7 @@ import type * as fleet from "../fleet.js";
 import type * as geo from "../geo.js";
 import type * as optimiser from "../optimiser.js";
 import type * as reenrich from "../reenrich.js";
+import type * as roads from "../roads.js";
 import type * as runs from "../runs.js";
 import type * as settings from "../settings.js";
 import type * as stats from "../stats.js";
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   geo: typeof geo;
   optimiser: typeof optimiser;
   reenrich: typeof reenrich;
+  roads: typeof roads;
   runs: typeof runs;
   settings: typeof settings;
   stats: typeof stats;

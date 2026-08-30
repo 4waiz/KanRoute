@@ -131,6 +131,12 @@ export default defineSchema({
     shipmentRefs: v.array(v.string()),
     companies: v.optional(v.array(v.string())),
     rationale: v.optional(v.string()),
+    // Real driving geometry from OSRM, resolved once when the plan is saved.
+    // roadPath is the full pickup sequence, linkPath the direct depot-to-zone
+    // run. Both optional: a route that fails to resolve falls back to the
+    // straight-line geometry the map can always compute itself.
+    roadPath: v.optional(v.array(v.array(v.number()))),
+    linkPath: v.optional(v.array(v.array(v.number()))),
     createdAt: v.number(),
   }).index("by_runId", ["runId"]),
 

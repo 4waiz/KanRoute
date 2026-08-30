@@ -122,7 +122,11 @@ Every route leaves the same depot, so drawn naively they collapse into an unread
 
 The basemap is Esri's dark canvas, a purpose-built dark basemap served without an API key, with place names on their own layer beneath the routes. It replaced an inverted OpenStreetMap layer, which flattened Dubai into a near-black slab and left the routes looking pasted onto a dark rectangle. Leaflet snaps `fitBounds` down to a whole zoom level by default, which left the plan filling barely half the panel, so the map runs with fractional zoom.
 
-Coordinates are district-level, so distances are directionally right rather than routing-grade. Routes are not snapped to roads: doing so would mean ~32 calls per plan to a public routing demo server with no SLA, and a rate limit mid-demo is a worse failure than a slightly abstract line.
+**Real roads.** Route lines follow the actual driveable road network, resolved from OSRM. Straight chords between district coordinates cut across the sea, through blocks and over open desert, which makes a real plan look invented. Geometry is fetched **once, server-side, when a plan is saved** — two paths per route, the full pickup sequence and the direct depot-to-zone link — and stored on the route document. Nothing is requested while anyone is looking at the map, so a routing service being slow or rate-limited cannot affect a live demo, and a route that fails to resolve simply keeps the straight-line geometry the map computes itself.
+
+Road geometry is drawn exactly as the router returns it, with no lane offset: a line nudged sideways to look tidy is a line that is no longer on the road. Routes sharing an arterial genuinely overlap there, which is the truth and is what every fleet map shows; the casing and the focus state are what keep them readable.
+
+**One honest caveat:** road geometry is what you *see*. The distances behind the savings are still haversine multiplied by a 1.35 urban detour factor, applied identically to baseline and consolidated so the comparison stays like for like. Supplier coordinates are district-level. Making the reported distances routing-grade means feeding OSRM's own leg distances back into the optimiser, which is the obvious next step and is not what today's numbers are built on.
 
 ## How the numbers are computed
 
@@ -177,7 +181,7 @@ Omitting the value pipes it in via stdin, keeping it out of shell history.
 
 ## Limitations
 
-- District-level coordinates, so distances are directionally right rather than routing-grade. Production would use a road-network distance matrix.
+- Route lines follow real roads, but the reported distances do not: they remain haversine with a 1.35 detour factor over district-level coordinates. Production would feed the road-network distance matrix back into the optimiser.
 - Consolidation groups by drop zone. Multi-drop routes across adjacent zones would save more and are the obvious next step.
 - Receiving hours are only as good as what a company publishes; where a site lists only opening hours, KanRoute says so.
 - The optimiser searches exhaustively per zone, correct at this scale but needing a heuristic beyond a few dozen consignments per zone.
@@ -189,4 +193,4 @@ The interface is dark, built on a palette sampled from the logo itself: `#3048cc
 
 ## Hackathon disclosure
 
-Built during the **Collabute X TheBlock. Hackathon**, Dubai, 30 August 2026, in accordance with event rules. All product code was written during the event. Third-party dependencies are standard open-source packages: Next.js, React, Tailwind CSS, Convex, `@context-dot-dev/convex`, `leaflet`, `react-leaflet`, `lucide-react` and `zod`.
+Built during the **Collabute X TheBlock. Hackathon**, Dubai, 30 August 2026, in accordance with event rules. All product code was written during the event. Third-party dependencies are standard open-source packages: Next.js, React, Tailwind CSS, Convex, `@context-dot-dev/convex`, `leaflet`, `react-leaflet`, `lucide-react` and `zod`. Road geometry comes from the public OSRM demo server.

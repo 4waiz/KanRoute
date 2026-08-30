@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction } from "./_generated/server";
@@ -383,6 +383,10 @@ async function finish(
   }));
 
   await ctx.runMutation(internal.runs.saveRoutes, { runId, routes });
+
+  // Resolve real road geometry in the background. The plan is already valid
+  // without it, so this never blocks the run completing.
+  await ctx.scheduler.runAfter(0, api.roads.enrichRun, { runId });
 
   const totalKm = Math.round(Number(output.totalDistanceKm ?? 0) * 10) / 10;
   await ctx.runMutation(internal.runs.patchRun, {
