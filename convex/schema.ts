@@ -30,6 +30,8 @@ export const provider = v.union(
   v.literal("context.dev"),
   v.literal("convex"),
   v.literal("devin"),
+  v.literal("kanroute"),
+  // Retained so events written before the rename stay schema-valid.
   v.literal("loadshare"),
 );
 

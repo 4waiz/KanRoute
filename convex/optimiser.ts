@@ -74,7 +74,7 @@ function buildPrompt(args: {
     .join("\n");
 
   return [
-    "You are the routing engine for LoadShare UAE, a last-mile consolidation",
+    "You are the routing engine for KanRoute, a last-mile consolidation",
     "service operating in Dubai.",
     "",
     "Today every consignment below is moving on its own van. Your job is to",
@@ -138,7 +138,7 @@ export const startSession = internalAction({
     });
     await ctx.runMutation(internal.events.log, {
       runId,
-      provider: "loadshare",
+      provider: "kanroute",
       type: "optimise.queued",
       message: `Handing ${shipments.length} consignments to Devin for routing`,
     });
@@ -159,8 +159,8 @@ export const startSession = internalAction({
           structured_output_required: true,
           max_acu_limit: MAX_ACU_LIMIT,
           resumable: false,
-          tags: ["loadshare-uae"],
-          title: `LoadShare consolidation: ${shipments.length} consignments`,
+          tags: ["kanroute"],
+          title: `KanRoute consolidation: ${shipments.length} consignments`,
         }),
       });
 
@@ -221,7 +221,7 @@ export const pollSession = internalAction({
       });
       await ctx.runMutation(internal.events.log, {
         runId,
-        provider: "loadshare",
+        provider: "kanroute",
         type: "optimise.timeout",
         message: "Optimisation timed out.",
       });
@@ -277,7 +277,7 @@ export const pollSession = internalAction({
       await ctx.runMutation(internal.runs.patchRun, { runId, nudgeSent: true });
       await ctx.runMutation(internal.events.log, {
         runId,
-        provider: "loadshare",
+        provider: "kanroute",
         type: "devin.nudged",
         message: "Devin stalled without structured output, sending one follow-up.",
       });

@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { LoadShareMark } from "@/components/Brand";
+import { KanRouteMark } from "@/components/Brand";
 
 const NAV = [
   { href: "/", label: "Overview", icon: Home },
@@ -61,11 +61,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-[100dvh] flex-col lg:h-[100dvh] lg:overflow-hidden">
       <header className="flex shrink-0 flex-wrap items-center gap-3 px-3 py-2.5 sm:px-4">
         <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--kf-accent)]">
-            <LoadShareMark size={16} color="#fff" />
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">
-            LoadShare
+          <KanRouteMark size={30} />
+          <span className="text-[16px] font-semibold tracking-tight">
+            <span className="text-[var(--kf-ink)]">Kan</span>
+            <span style={{ color: "var(--kf-accent)" }}>Route</span>
           </span>
         </Link>
 

@@ -92,7 +92,7 @@ export const dispatch = mutation({
 
     await ctx.runMutation(internal.events.log, {
       runId: run._id,
-      provider: "loadshare",
+      provider: "kanroute",
       type: "fleet.dispatched",
       message: `${routes.length} vehicles dispatched against the proven plan`,
     });
@@ -124,7 +124,7 @@ export const tick = internalMutation({
       if (finished) {
         await ctx.runMutation(internal.events.log, {
           runId: vRow.runId,
-          provider: "loadshare",
+          provider: "kanroute",
           type: "vehicle.completed",
           message: `${vRow.label} finished ${vRow.zone} (${vRow.stopsTotal} stops, ${vRow.distanceKm} km)`,
         });

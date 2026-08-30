@@ -1,4 +1,4 @@
-# LoadShare UAE - Submission
+# KanRoute - Submission
 
 Copy-paste answers for **https://collabute-hackathon.vercel.app**
 Deadline: **17:00 GST, 30 August 2026** (strict).
@@ -7,11 +7,11 @@ Deadline: **17:00 GST, 30 August 2026** (strict).
 
 ## Project name
 
-LoadShare UAE
+KanRoute
 
 ## One-line description
 
-LoadShare consolidates fragmented last-mile deliveries in Dubai by reading each supplier's real goods-receiving hours from their own website, then having an autonomous engineer build and prove a consolidated routing plan.
+KanRoute consolidates fragmented last-mile deliveries in Dubai by reading each supplier's real goods-receiving hours from their own website, then having an autonomous engineer build and prove a consolidated routing plan.
 
 ## Problem being solved
 
@@ -35,7 +35,7 @@ Convex is the backend, the orchestration layer and the live operational picture.
 
 Devin is the routing engineer, at runtime, not a coding assistant we used to build the app. When a run starts, Convex opens a Devin v3 session authenticated as a dedicated service user with the Member role, passing the consignment set, vehicle capacity, depot, and the real pickup windows from Context.dev, together with a `structured_output_schema` and a `max_acu_limit` spend cap. Devin writes a consolidation optimiser, executes it, then writes a **separate independent constraint checker** and executes that too, returning the checker's verbatim stdout. On the live run it produced a Python optimiser doing an exhaustive per-zone partition search under capacity and window-intersection constraints, and a checker that verified capacity, minimum 60-minute window overlap, single drop zone, and complete non-duplicated coverage, printing `PASS` per route and `RESULT ALL ROUTES FEASIBLE`. Twelve vans became five routes, 898.28 km became 702.52 km. Every number on the dashboard is computed and verified by executed code rather than asserted by a model.
 
-One engineering detail worth noting: we established before building that `structured_output_required: true` does not reliably force structured output, since a session can answer in chat and park at `waiting_for_user`. LoadShare therefore implements a bounded poll and nudge state machine, at most one follow-up demanding `provide_structured_output(is_final=true)`, at most forty polls, then a clean failure. No infinite loops and no fabricated plan.
+One engineering detail worth noting: we established before building that `structured_output_required: true` does not reliably force structured output, since a session can answer in chat and park at `waiting_for_user`. KanRoute therefore implements a bounded poll and nudge state machine, at most one follow-up demanding `provide_structured_output(is_final=true)`, at most forty polls, then a clean failure. No infinite loops and no fabricated plan.
 
 ## Repository
 

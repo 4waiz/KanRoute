@@ -1,10 +1,10 @@
-# LoadShare UAE
+# KanRoute
 
 **Fewer vans. Same deliveries.**
 
 Dubai's roads carry thousands of half-empty delivery vehicles every day. Three separate vans drive to Jumeirah Lake Towers carrying a few hundred kilos each, at overlapping times, because no system knows their deliveries are compatible.
 
-LoadShare finds those compatible deliveries and consolidates them, then **proves the resulting plan is actually operable** before anyone acts on it.
+KanRoute finds those compatible deliveries and consolidates them, then **proves the resulting plan is actually operable** before anyone acts on it.
 
 ---
 
@@ -14,7 +14,7 @@ Last-mile logistics in the UAE is fragmented by design. Each supplier books its 
 
 Consolidation is not a new idea. The reason it does not happen is that it needs data nobody has in one place: **when can each supplier actually release goods?** Those receiving hours live on company websites, in inconsistent formats, and change. Without them a consolidation plan is a guess, and an unusable plan is worse than no plan.
 
-## What LoadShare does
+## What KanRoute does
 
 ```
 SUPPLIER WEBSITES
@@ -42,7 +42,7 @@ On the first live run: **12 separate vans became 5 consolidated routes**, distan
 
 ## The feasibility proof
 
-The distinguishing feature is that LoadShare does not ask you to trust the plan. Devin returns the real output of a checker it wrote and ran:
+The distinguishing feature is that KanRoute does not ask you to trust the plan. Devin returns the real output of a checker it wrote and ran:
 
 ```
 PASS R1 zone=Business Bay         refs=SHP-004,SHP-005,SHP-006 load= 870/1200kg window=08:00-17:00 (540min) dist=146.29km
@@ -59,7 +59,7 @@ Every route is checked for capacity, a window intersection of at least 60 minute
 
 ## Bounded agent orchestration
 
-We verified during preparation that Devin's `structured_output_required: true` does **not** reliably force structured output; a session can answer in chat and park at `waiting_for_user`. LoadShare handles this explicitly:
+We verified during preparation that Devin's `structured_output_required: true` does **not** reliably force structured output; a session can answer in chat and park at `waiting_for_user`. KanRoute handles this explicitly:
 
 ```
 create session -> poll every 15s
@@ -120,7 +120,7 @@ Omitting the value pipes it in via stdin, keeping it out of shell history.
 
 - Coordinates are district-level, so distances are directionally right rather than routing-grade. A production build would use a road-network distance matrix.
 - Consolidation currently groups by drop zone. Multi-drop routes across adjacent zones would save more and are the obvious next step.
-- Receiving hours are only as good as what a company publishes; where a site lists only opening hours, LoadShare says so rather than pretending otherwise.
+- Receiving hours are only as good as what a company publishes; where a site lists only opening hours, KanRoute says so rather than pretending otherwise.
 - The optimiser searches exhaustively per zone, which is correct at this scale but would need a heuristic beyond a few dozen consignments per zone.
 
 ## Hackathon disclosure
