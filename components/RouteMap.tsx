@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   Marker,
@@ -100,6 +100,10 @@ const toLatLng = (p: XY): [number, number] => [
   p.x / KM_PER_DEG_LNG,
 ];
 
+/** How fast a van crosses its day on screen, as a fraction per second.
+ *  Tuned to keep moving between server ticks rather than lurching. */
+const SPEED_PER_SEC = 0.014;
+
 /** Departure fan angle at the depot. */
 const GATE_SPREAD = (9 * Math.PI) / 180;
 
@@ -162,6 +166,18 @@ function pointAlong(
     acc += segs[i];
   }
   return path[path.length - 1];
+}
+
+/** Length of a path in the same units pointAlong walks in. */
+function pathLength(path: [number, number][]): number {
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    total += Math.hypot(
+      path[i][0] - path[i - 1][0],
+      (path[i][1] - path[i - 1][1]) * 0.9,
+    );
+  }
+  return total;
 }
 
 /** Stored geometry arrives as plain [lat, lng] pairs; reject anything that
@@ -552,6 +568,12 @@ export function RouteMap({
           lane * laneKm,
         ).map(toLatLng);
 
+      // Out to the stops, then home again. A van's day is one continuous
+      // path, so the animation treats it as one and never teleports.
+      const journey: [number, number][] = [...legs, ...returnLeg];
+      const outLen = pathLength(legs);
+      const total = outLen + pathLength(returnLeg);
+
       return {
         route: r,
         color: ROUTE_COLORS[i % ROUTE_COLORS.length],
@@ -560,6 +582,10 @@ export function RouteMap({
         spine,
         legs,
         returnLeg,
+        journey,
+        // Where along the whole day the last drop happens; past this point
+        // the van is running back empty.
+        outFrac: total > 0 ? outLen / total : 1,
       };
     });
   }, [routes, byRef, laneKm]);
@@ -627,9 +653,10 @@ export function RouteMap({
     ? built.filter((b) => visible[b.route.label] !== false)
     : [];
 
-  // Vehicles placed on the road geometry they are actually driving. Convex
-  // pushes each tick, so the trucks move on their own with no client timer.
-  const trucks = useMemo(() => {
+  // Where each van is headed. Convex pushes a stop count every few seconds;
+  // that is the truth, but on its own it makes a van teleport from stop to
+  // stop. This is the target the animation drives toward.
+  const targets = useMemo(() => {
     if (!consolidated) return [];
     const byLabel = new Map(built.map((b) => [b.route.label, b]));
     return vehicles
@@ -640,11 +667,91 @@ export function RouteMap({
       .map((v) => {
         const b = byLabel.get(v.label);
         if (!b) return null;
-        const at = pointAlong(b.legs, v.progress / 100);
-        return at ? { vehicle: v, at, color: b.color, zone: b.route.zone } : null;
+        // Aim at the NEXT stop, not the last confirmed one. Targeting where
+        // the van already is leaves it parked between server ticks, lurching
+        // forward once every tick; aiming one stop ahead keeps it driving,
+        // arriving about as the tick that confirms it lands.
+        // Finished vans keep going through the last drop and back to the
+        // depot, because that is what happens at the end of a round.
+        const stops = Math.max(1, v.stopsTotal);
+        const perStop = b.outFrac / stops;
+        const reached = (Math.max(0, Math.min(stops, v.stopsCompleted)) / stops) * b.outFrac;
+        const target =
+          v.status === "completed" ? 1 : Math.min(b.outFrac, reached + perStop);
+        return { vehicle: v, route: b, target, reached };
       })
       .filter((x): x is NonNullable<typeof x> => Boolean(x));
   }, [vehicles, built, visible, consolidated, focus]);
+
+  // The animated position of every van, keyed by id and carried across
+  // frames. A ref rather than state: it changes sixty times a second and
+  // only the markers care.
+  const drivenRef = useRef(new Map<string, number>());
+  const [frame, setFrame] = useState(0);
+
+  // The loop reads its work from a ref, not from its own closure. Driving it
+  // straight off `targets` meant the interval captured one render's vehicles
+  // and kept animating toward stale positions after the next server tick, so
+  // the vans reached a target once and then sat there for good.
+  const targetsRef = useRef(targets);
+  useEffect(() => {
+    targetsRef.current = targets;
+  }, [targets]);
+
+  useEffect(() => {
+    const driven = drivenRef.current;
+    const STEP_MS = 50;
+    const id = window.setInterval(() => {
+      const list = targetsRef.current;
+      if (list.length === 0) return;
+      let moved = false;
+
+      for (const t of list) {
+        // A van joining mid-round starts at the stop it has actually
+        // reached, then drives on, rather than flying in from the depot.
+        if (!driven.has(t.vehicle._id)) {
+          driven.set(t.vehicle._id, t.reached);
+          moved = true;
+          continue;
+        }
+        const at = driven.get(t.vehicle._id) ?? t.reached;
+        const gap = t.target - at;
+        if (Math.abs(gap) < 0.0005) continue;
+
+        // Constant speed reads like a vehicle; easing reads like a slider
+        // settling. An empty van running home moves quicker than one working
+        // its way between drops, which is both true and better to watch.
+        const speed =
+          at >= t.route.outFrac - 0.001 ? SPEED_PER_SEC * 2.2 : SPEED_PER_SEC;
+        const stepped = Math.min(Math.abs(gap), (speed * STEP_MS) / 1000);
+        driven.set(t.vehicle._id, at + Math.sign(gap) * stepped);
+        moved = true;
+      }
+
+      if (moved) setFrame((f) => (f + 1) % 1_000_000);
+    }, STEP_MS);
+
+    return () => window.clearInterval(id);
+  }, []);
+
+  const trucks = useMemo(() => {
+    void frame; // recomputed each animation frame
+    return targets
+      .map((t) => {
+        const at = drivenRef.current.get(t.vehicle._id) ?? t.target;
+        const pos = pointAlong(t.route.journey, at);
+        if (!pos) return null;
+        return {
+          vehicle: t.vehicle,
+          at: pos,
+          color: t.route.color,
+          zone: t.route.route.zone,
+          // Past the last drop the van is running home empty.
+          returning: at >= t.route.outFrac - 0.001,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+  }, [targets, frame]);
   const active = drawn.find((b) => b.route.label === focus);
   const resting = drawn.filter((b) => b.route.label !== focus);
 
@@ -892,17 +999,15 @@ export function RouteMap({
           <Marker
             key={`v-${t.vehicle._id}`}
             position={t.at}
-            icon={truckIcon(
-              t.color,
-              t.vehicle.progress,
-              t.vehicle.status === "completed",
-            )}
+            icon={truckIcon(t.color, t.vehicle.progress, t.returning)}
             zIndexOffset={800}
             eventHandlers={hoverProps(t.vehicle.label)}
           >
             <Tooltip className="kr-zone" direction="top" offset={[0, -14]}>
-              {t.vehicle.plate} · {t.zone} · {t.vehicle.stopsCompleted}/
-              {t.vehicle.stopsTotal} stops
+              {t.vehicle.plate} ·{" "}
+              {t.returning
+                ? `delivered ${t.zone}, returning to depot`
+                : `${t.zone} · ${t.vehicle.stopsCompleted}/${t.vehicle.stopsTotal} stops`}
             </Tooltip>
           </Marker>
         ))}
