@@ -474,10 +474,20 @@ body {
 
 /* --------------------------------------------------------- guided tour */
 
+/* The overlay explains the app; it must not take it away. Clicks pass
+   straight through to the page underneath, so a user can tick a route or
+   press a button while the tour is still open - being told what a control
+   does and then finding it dead is worse than no tour at all. */
 .kr-tour {
   position: fixed;
   inset: 0;
   z-index: 4000;
+  pointer-events: none;
+}
+
+/* The card itself is the one part that does take clicks. */
+.kr-tour-card {
+  pointer-events: auto;
 }
 
 /* The dim and the cut-out are the same element: an enormous shadow
@@ -502,6 +512,7 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(4, 6, 8, 0.72);
+  pointer-events: none;
 }
 
 .kr-tour-card {
