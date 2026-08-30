@@ -223,7 +223,7 @@ export function RouteMap({
         : DEPOT;
 
       // Fan successive routes apart, alternating side so they never stack.
-      const bend = (i % 2 === 0 ? 1 : -1) * (0.05 + Math.floor(i / 2) * 0.028);
+      const bend = (i % 2 === 0 ? 1 : -1) * (0.04 + Math.floor(i / 2) * 0.02);
 
       const legs: [number, number][][] = [];
       let from: LatLng = DEPOT;
@@ -245,14 +245,24 @@ export function RouteMap({
     });
   }, [routes, byRef]);
 
+  // Bounds must come from the geometry actually drawn. Bowed routes swing
+  // well outside the straight-line box between their endpoints, so fitting
+  // to endpoints alone pushes half of every curve off screen.
   const allPoints = useMemo(() => {
     const pts: [number, number][] = [[DEPOT.lat, DEPOT.lng]];
     for (const s of shipments) {
       pts.push([s.originLat, s.originLng]);
       pts.push([s.destLat, s.destLng]);
     }
+    if (consolidated) {
+      for (const b of built) {
+        if (visible[b.route.label] === false) continue;
+        for (const leg of b.legs) pts.push(...leg);
+        pts.push(...b.returnLeg);
+      }
+    }
     return pts;
-  }, [shipments]);
+  }, [shipments, built, consolidated, visible]);
 
   return (
     <MapContainer
