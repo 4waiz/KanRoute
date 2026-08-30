@@ -1,26 +1,40 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 :root {
-  /* Canvas the app panel floats on */
-  --kf-canvas: #a9bcbb;
-  --kf-shell: #eef3f1;
+  /* Surfaces, darkest to lightest */
+  --kf-canvas: #08090a;
+  --kf-shell: #0e1113;
+  --kf-card: #16191c;
+  --kf-card-sub: #1f2327;
 
-  --kf-card: #ffffff;
-  --kf-card-sub: #f5f8f7;
-  --kf-border: rgba(16, 32, 30, 0.07);
+  /* Base for every color-mix tint. Swapping this is what makes tinted
+     backgrounds work in either theme without rewriting call sites. */
+  --kf-mix: #16191c;
 
-  --kf-ink: #0c1211;
-  --kf-ink-2: #4c5a58;
-  --kf-ink-3: #8b9895;
+  --kf-border: rgba(255, 255, 255, 0.08);
+  --kf-border-strong: rgba(255, 255, 255, 0.16);
 
-  --kf-accent: #ff6b2c;
-  --kf-pass: #35c46b;
-  --kf-fail: #f4483d;
-  --kf-review: #ffab2e;
-  --kf-running: #3d8bff;
+  /* Text, primary to faint */
+  --kf-ink: #eef1f3;
+  --kf-ink-2: #a7b0b6;
+  --kf-ink-3: #6d777d;
 
-  --kf-shadow: 0 1px 2px rgba(12, 18, 17, 0.04), 0 10px 30px rgba(12, 18, 17, 0.06);
-  --kf-shadow-sm: 0 1px 2px rgba(12, 18, 17, 0.05);
+  /* Solid button surface. Distinct from --kf-ink so buttons do not invert. */
+  --kf-solid: #eef1f3;
+  --kf-solid-fg: #0e1113;
+
+  /* Terminal is always dark, in either theme. */
+  --kf-terminal: #08090a;
+
+  --kf-accent: #ff7a33;
+  --kf-pass: #3ddc84;
+  --kf-fail: #ff5a4f;
+  --kf-review: #ffb340;
+  --kf-running: #4d9dff;
+
+  --kf-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.42);
+  --kf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
 @theme inline {
@@ -38,6 +52,7 @@ html,
 body {
   background: var(--kf-canvas);
   color: var(--kf-ink);
+  color-scheme: dark;
 }
 
 body {
@@ -47,33 +62,88 @@ body {
 .kf-shell {
   background: var(--kf-shell);
   border-radius: 30px;
-  box-shadow: 0 20px 60px rgba(12, 18, 17, 0.14);
+  border: 1px solid var(--kf-border);
 }
 
 .kf-card {
   background: var(--kf-card);
   border-radius: 22px;
+  border: 1px solid var(--kf-border);
   box-shadow: var(--kf-shadow);
 }
 
 .kf-chip {
   background: var(--kf-card);
+  border: 1px solid var(--kf-border);
   border-radius: 999px;
-  box-shadow: var(--kf-shadow-sm);
 }
 
-/* Black pill callout, used for the single most important value on screen. */
+/* Elevated callout for the single most important statement on screen. */
 .kf-pill-dark {
-  background: var(--kf-ink);
-  color: #fff;
-  border-radius: 16px;
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, var(--kf-accent) 12%, var(--kf-card)) 0%,
+    var(--kf-card) 62%
+  );
+  border: 1px solid color-mix(in srgb, var(--kf-accent) 26%, transparent);
+  border-radius: 22px;
+  box-shadow: var(--kf-shadow);
 }
 
 .kf-leader {
   flex: 1;
-  border-bottom: 1px dashed rgba(12, 18, 17, 0.18);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.16);
   margin: 0 10px;
   transform: translateY(-3px);
+}
+
+/* Dark basemap without a second tile provider or an API key. Markers and
+   polylines live in overlay panes, so they keep their true colours. */
+.leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.92)
+    saturate(0.7);
+}
+
+.leaflet-container {
+  background: #0b0e10;
+}
+
+.leaflet-control-zoom a {
+  background: var(--kf-card) !important;
+  color: var(--kf-ink) !important;
+  border-color: var(--kf-border) !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(8, 9, 10, 0.75) !important;
+  color: var(--kf-ink-3) !important;
+}
+.leaflet-control-attribution a {
+  color: var(--kf-ink-2) !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--kf-card) !important;
+  color: var(--kf-ink) !important;
+  box-shadow: var(--kf-shadow) !important;
+}
+
+.leaflet-tooltip {
+  background: var(--kf-card) !important;
+  color: var(--kf-ink) !important;
+  border: 1px solid var(--kf-border) !important;
+  box-shadow: var(--kf-shadow-sm) !important;
+}
+.leaflet-tooltip::before {
+  border-top-color: var(--kf-card) !important;
+  border-bottom-color: var(--kf-card) !important;
+}
+
+/* Scrollbars inside dark panels */
+* {
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  scrollbar-width: thin;
 }
 
 @keyframes kf-spin {
@@ -97,7 +167,7 @@ body {
   top: 0;
   bottom: 0;
   width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(255, 107, 44, 0.55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 122, 51, 0.6), transparent);
   animation: kf-sweep 1.5s ease-in-out infinite;
 }
 

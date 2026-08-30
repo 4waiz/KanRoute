@@ -93,8 +93,8 @@ export function FleetStatus({
           <button
             onClick={onDispatch}
             disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11.5px] font-semibold text-white transition disabled:opacity-50"
-            style={{ background: "var(--kf-ink)" }}
+            className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11.5px] font-semibold transition disabled:opacity-50"
+            style={{ background: "var(--kf-solid)", color: "var(--kf-solid-fg)" }}
           >
             <Truck className="h-3.5 w-3.5" />
             Dispatch fleet
@@ -135,7 +135,7 @@ export function FleetStatus({
               >
                 <span
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-                  style={{ background: `color-mix(in srgb, ${color} 16%, white)` }}
+                  style={{ background: `color-mix(in srgb, ${color} 16%, var(--kf-mix))` }}
                 >
                   <Truck className="h-4 w-4" style={{ color }} />
                 </span>
@@ -148,7 +148,7 @@ export function FleetStatus({
                     <span
                       className="rounded-full px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider"
                       style={{
-                        background: `color-mix(in srgb, ${st.color} 15%, white)`,
+                        background: `color-mix(in srgb, ${st.color} 15%, var(--kf-mix))`,
                         color: st.color,
                       }}
                     >
@@ -159,7 +159,7 @@ export function FleetStatus({
                     {vh.driver} · {vh.zone}
                   </span>
                   <span className="mt-1.5 flex items-center gap-2">
-                    <span className="h-1.5 w-24 overflow-hidden rounded-full bg-[rgba(12,18,17,0.08)]">
+                    <span className="h-1.5 w-24 overflow-hidden rounded-full bg-[rgba(255,255,255,0.09)]">
                       <span
                         className="block h-full rounded-full transition-all"
                         style={{ width: `${vh.progress}%`, background: color }}
@@ -260,7 +260,7 @@ function VehicleDetail({
                   style={{
                     background: doneStop
                       ? "var(--kf-pass)"
-                      : "rgba(12,18,17,0.22)",
+                      : "rgba(255,255,255,0.22)",
                   }}
                 >
                   {doneStop ? <CheckCircle2 className="h-3 w-3" /> : i + 1}

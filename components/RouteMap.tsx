@@ -1,6 +1,5 @@
 "use client";
 
-import "leaflet/dist/leaflet.css";
 import { Fragment, useEffect, useMemo } from "react";
 import {
   CircleMarker,
@@ -64,12 +63,12 @@ function depotIcon() {
   return L.divIcon({
     className: "",
     html: `<div style="
-      background:#0c1211;color:#fff;
+      background:#f2f4f5;color:#0b0e10;
       padding:3px 8px;border-radius:7px;
       font:700 10px/1.4 ui-sans-serif,system-ui,sans-serif;
       letter-spacing:.08em;
-      box-shadow:0 2px 8px rgba(0,0,0,.4);
-      border:1.5px solid #fff;
+      box-shadow:0 2px 10px rgba(0,0,0,.6);
+      border:1.5px solid rgba(0,0,0,.25);
     ">DEPOT</div>`,
     iconSize: [56, 20],
     iconAnchor: [28, 10],
@@ -206,7 +205,7 @@ export function RouteMap({
               [DEPOT.lat, DEPOT.lng],
             ]}
             pathOptions={{
-              color: "#8b9895",
+              color: "#7b868c",
               weight: 1.4,
               opacity: 0.5,
               dashArray: "4 4",
@@ -266,7 +265,7 @@ export function RouteMap({
                 center={[b.drop.lat, b.drop.lng]}
                 radius={9}
                 pathOptions={{
-                  color: "#0c1211",
+                  color: "#0b0e10",
                   fillColor: b.color,
                   fillOpacity: dim ? 0.25 : 1,
                   weight: 2,

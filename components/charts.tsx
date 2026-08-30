@@ -43,8 +43,8 @@ export function SegmentGauge({
     // Ramp from pale to saturated across the filled arc.
     const t = segments > 1 ? i / (segments - 1) : 1;
     const color = on
-      ? `color-mix(in srgb, var(--kf-accent) ${45 + t * 55}%, white)`
-      : "rgba(12,18,17,0.07)";
+      ? `color-mix(in srgb, var(--kf-accent) ${40 + t * 60}%, var(--kf-card))`
+      : "rgba(255,255,255,0.08)";
     return { d: wedge(from, to), color, key: i };
   });
 
@@ -130,7 +130,7 @@ export function MetricBar({
           {value}
         </span>
       </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(12,18,17,0.07)]">
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
         <div
           className="h-full rounded-full transition-all"
           style={{
@@ -148,7 +148,7 @@ export function UtilBar({ pct }: { pct: number }) {
   const color = pct >= 80 ? "#177f49" : pct >= 60 ? "#4fb96a" : pct >= 40 ? "#f5c344" : "#f07c34";
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[rgba(12,18,17,0.08)]">
+      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[rgba(255,255,255,0.09)]">
         <span
           className="block h-full rounded-full"
           style={{ width: `${Math.min(100, pct)}%`, background: color }}

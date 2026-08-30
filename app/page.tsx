@@ -500,7 +500,7 @@ export default function Dashboard() {
                           <span
                             className="rounded px-1.5 py-0.5 font-mono text-[10px]"
                             style={{
-                              background: `color-mix(in srgb, ${color} 14%, white)`,
+                              background: `color-mix(in srgb, ${color} 14%, var(--kf-mix))`,
                               color,
                             }}
                           >
@@ -693,8 +693,8 @@ export default function Dashboard() {
                       className="rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider"
                       style={{
                         background: latest.feasible
-                          ? "color-mix(in srgb, var(--kf-pass) 14%, white)"
-                          : "color-mix(in srgb, var(--kf-fail) 14%, white)",
+                          ? "color-mix(in srgb, var(--kf-pass) 14%, var(--kf-mix))"
+                          : "color-mix(in srgb, var(--kf-fail) 14%, var(--kf-mix))",
                         color: latest.feasible
                           ? "var(--kf-pass)"
                           : "var(--kf-fail)",
@@ -710,7 +710,7 @@ export default function Dashboard() {
               </button>
               {showProof && latest?.proofOutput && (
                 <div className="px-5 pb-5">
-                  <div className="overflow-hidden rounded-2xl bg-[var(--kf-ink)]">
+                  <div className="overflow-hidden rounded-2xl bg-[var(--kf-terminal)] ring-1 ring-[var(--kf-border)]">
                     <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
                       <Terminal className="h-3.5 w-3.5 text-white/45" />
                       <span className="font-mono text-[10px] tracking-wider text-white/60">
@@ -834,7 +834,7 @@ function RailIcon({
     <span
       className={`grid h-10 w-10 place-items-center rounded-2xl transition ${
         active
-          ? "bg-[var(--kf-ink)] text-white"
+          ? "bg-[var(--kf-solid)] text-[var(--kf-solid-fg)]"
           : "text-[var(--kf-ink-3)] hover:bg-[var(--kf-card-sub)]"
       }`}
     >
