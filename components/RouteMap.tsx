@@ -35,27 +35,65 @@ export type MapRoute = {
   loadKg: number;
 };
 
-
+type LatLng = { lat: number; lng: number };
 
 const DEPOT = { name: "Al Quoz Consolidation Hub", lat: 25.13, lng: 55.22 };
 
-/** Numbered stop pin, coloured per route, like a routing console. */
+/**
+ * Quadratic bezier between two points, bowed perpendicular to the chord.
+ * Routes share endpoints, so straight chords stack into an unreadable
+ * starburst. Alternating the bow fans them apart instead.
+ */
+function curve(a: LatLng, b: LatLng, bend: number, steps = 26): [number, number][] {
+  const mid = { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
+  const dLat = b.lat - a.lat;
+  const dLng = b.lng - a.lng;
+  // Perpendicular of the chord, scaled by the bend factor.
+  const ctrl = { lat: mid.lat - dLng * bend, lng: mid.lng + dLat * bend };
+
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const u = 1 - t;
+    pts.push([
+      u * u * a.lat + 2 * u * t * ctrl.lat + t * t * b.lat,
+      u * u * a.lng + 2 * u * t * ctrl.lng + t * t * b.lng,
+    ]);
+  }
+  return pts;
+}
+
 function stopIcon(color: string, label: string, dim: boolean) {
   return L.divIcon({
     className: "",
     html: `<div style="
       background:${color};
-      opacity:${dim ? 0.28 : 1};
-      color:#fff;
-      width:22px;height:22px;
-      border-radius:6px;
+      opacity:${dim ? 0.22 : 1};
+      color:#0b0e10;
+      width:19px;height:19px;
+      border-radius:50%;
       display:flex;align-items:center;justify-content:center;
-      font:600 11px/1 ui-sans-serif,system-ui,sans-serif;
-      box-shadow:0 1px 4px rgba(0,0,0,.35);
-      border:1.5px solid #fff;
+      font:700 10px/1 ui-sans-serif,system-ui,sans-serif;
+      box-shadow:0 0 0 2px rgba(8,9,10,.85);
     ">${label}</div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    iconSize: [19, 19],
+    iconAnchor: [9.5, 9.5],
+  });
+}
+
+function dropIcon(color: string, dim: boolean) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width:15px;height:15px;
+      border-radius:4px;
+      background:${color};
+      opacity:${dim ? 0.22 : 1};
+      transform:rotate(45deg);
+      box-shadow:0 0 0 2.5px rgba(8,9,10,.9);
+    "></div>`,
+    iconSize: [15, 15],
+    iconAnchor: [7.5, 7.5],
   });
 }
 
@@ -64,23 +102,21 @@ function depotIcon() {
     className: "",
     html: `<div style="
       background:#f2f4f5;color:#0b0e10;
-      padding:3px 8px;border-radius:7px;
-      font:700 10px/1.4 ui-sans-serif,system-ui,sans-serif;
-      letter-spacing:.08em;
+      padding:3px 9px;border-radius:999px;
+      font:700 9px/1.4 ui-sans-serif,system-ui,sans-serif;
+      letter-spacing:.09em;
       box-shadow:0 2px 10px rgba(0,0,0,.6);
-      border:1.5px solid rgba(0,0,0,.25);
     ">DEPOT</div>`,
-    iconSize: [56, 20],
-    iconAnchor: [28, 10],
+    iconSize: [58, 20],
+    iconAnchor: [29, 10],
   });
 }
 
-/** Keeps the viewport fitted to whatever is currently plotted. */
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
     if (points.length === 0) return;
-    map.fitBounds(L.latLngBounds(points), { padding: [30, 30], maxZoom: 12 });
+    map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 12 });
   }, [map, points]);
   return null;
 }
@@ -106,14 +142,13 @@ export function RouteMap({
     return m;
   }, [shipments]);
 
-  /** Depot -> unique pickups -> drop -> depot, in nearest-neighbour order. */
   const built = useMemo(() => {
     return routes.map((r, i) => {
       const items = r.shipmentRefs
         .map((ref) => byRef.get(ref))
         .filter((x): x is MapShipment => Boolean(x));
 
-      const pickups: { lat: number; lng: number; names: string[] }[] = [];
+      const pickups: (LatLng & { names: string[] })[] = [];
       for (const it of items) {
         const found = pickups.find(
           (p) => p.lat === it.originLat && p.lng === it.originLng,
@@ -127,9 +162,10 @@ export function RouteMap({
           });
       }
 
+      // Nearest-neighbour ordering from the depot.
       const ordered: typeof pickups = [];
       const remaining = [...pickups];
-      let cur = { lat: DEPOT.lat, lng: DEPOT.lng };
+      let cur: LatLng = DEPOT;
       while (remaining.length) {
         let best = 0;
         let bestD = Infinity;
@@ -142,27 +178,32 @@ export function RouteMap({
         });
         const next = remaining.splice(best, 1)[0];
         ordered.push(next);
-        cur = { lat: next.lat, lng: next.lng };
+        cur = next;
       }
 
-      const drop = items[0]
+      const drop: LatLng = items[0]
         ? { lat: items[0].destLat, lng: items[0].destLng }
-        : { lat: DEPOT.lat, lng: DEPOT.lng };
+        : DEPOT;
 
-      const path: [number, number][] = [
-        [DEPOT.lat, DEPOT.lng],
-        ...ordered.map((p) => [p.lat, p.lng] as [number, number]),
-        [drop.lat, drop.lng],
-        [DEPOT.lat, DEPOT.lng],
-      ];
+      // Fan successive routes apart, alternating side so they never stack.
+      const bend = (i % 2 === 0 ? 1 : -1) * (0.1 + (i % 4) * 0.045);
+
+      const legs: [number, number][][] = [];
+      let from: LatLng = DEPOT;
+      for (const p of ordered) {
+        legs.push(curve(from, p, bend));
+        from = p;
+      }
+      legs.push(curve(from, drop, bend));
 
       return {
         route: r,
         color: ROUTE_COLORS[i % ROUTE_COLORS.length],
         pickups: ordered,
         drop,
-        path,
-        items,
+        legs,
+        // Return leg is bowed the other way and drawn faintly.
+        returnLeg: curve(drop, DEPOT, -bend * 1.15),
       };
     });
   }, [routes, byRef]);
@@ -189,26 +230,27 @@ export function RouteMap({
       />
       <FitBounds points={allPoints} />
 
-      <Marker position={[DEPOT.lat, DEPOT.lng]} icon={depotIcon()}>
+      <Marker position={[DEPOT.lat, DEPOT.lng]} icon={depotIcon()} zIndexOffset={600}>
         <Popup>{DEPOT.name}</Popup>
       </Marker>
 
-      {/* Status quo: every consignment its own out-and-back leg. */}
+      {/* Status quo: faint, so the point is the volume of lines, not any one */}
       {!consolidated &&
-        shipments.map((s) => (
+        shipments.map((s, i) => (
           <Polyline
             key={`b-${s.reference}`}
             positions={[
-              [DEPOT.lat, DEPOT.lng],
-              [s.originLat, s.originLng],
-              [s.destLat, s.destLng],
-              [DEPOT.lat, DEPOT.lng],
+              ...curve(DEPOT, { lat: s.originLat, lng: s.originLng }, 0.06),
+              ...curve(
+                { lat: s.originLat, lng: s.originLng },
+                { lat: s.destLat, lng: s.destLng },
+                i % 2 ? 0.08 : -0.08,
+              ),
             ]}
             pathOptions={{
-              color: "#7b868c",
-              weight: 1.4,
-              opacity: 0.5,
-              dashArray: "4 4",
+              color: "#93a0a6",
+              weight: 1,
+              opacity: 0.35,
             }}
           />
         ))}
@@ -217,25 +259,57 @@ export function RouteMap({
         built.map((b) => {
           if (visible[b.route.label] === false) return null;
           const dim = selected !== null && selected !== b.route.label;
+          const flat = b.legs.flat();
+
           return (
-            <Polyline
-              key={`r-${b.route.label}`}
-              positions={b.path}
-              pathOptions={{
-                color: b.color,
-                weight: selected === b.route.label ? 6 : 4,
-                opacity: dim ? 0.2 : 0.9,
-                lineJoin: "round",
-              }}
-              eventHandlers={{
-                click: () =>
-                  onSelect(selected === b.route.label ? null : b.route.label),
-              }}
-            >
-              <Tooltip sticky>
-                {b.route.label} · {b.route.zone} · {b.route.distanceKm} km
-              </Tooltip>
-            </Polyline>
+            <Fragment key={`r-${b.route.label}`}>
+              {/* Return to depot, deliberately understated */}
+              <Polyline
+                positions={b.returnLeg}
+                pathOptions={{
+                  color: b.color,
+                  weight: 1.2,
+                  opacity: dim ? 0.06 : 0.28,
+                  dashArray: "2 7",
+                }}
+              />
+              {/* Base stroke */}
+              <Polyline
+                positions={flat}
+                pathOptions={{
+                  color: b.color,
+                  weight: selected === b.route.label ? 5 : 3,
+                  opacity: dim ? 0.12 : 0.55,
+                  lineCap: "round",
+                  lineJoin: "round",
+                }}
+                eventHandlers={{
+                  click: () =>
+                    onSelect(selected === b.route.label ? null : b.route.label),
+                }}
+              >
+                <Tooltip sticky>
+                  {b.route.zone} · {b.route.distanceKm} km · {b.route.loadKg} kg
+                </Tooltip>
+              </Polyline>
+              {/* Marching dash showing direction of travel */}
+              {!dim && (
+                <Polyline
+                  positions={flat}
+                  className={
+                    selected === b.route.label ? "kr-flow-fast" : "kr-flow"
+                  }
+                  pathOptions={{
+                    color: b.color,
+                    weight: selected === b.route.label ? 3 : 2,
+                    opacity: 0.95,
+                    dashArray: "10 16",
+                    lineCap: "round",
+                    interactive: false,
+                  }}
+                />
+              )}
+            </Fragment>
           );
         })}
 
@@ -243,6 +317,7 @@ export function RouteMap({
         built.map((b) => {
           if (visible[b.route.label] === false) return null;
           const dim = selected !== null && selected !== b.route.label;
+          const showLabel = selected === b.route.label;
           return (
             <Fragment key={`m-${b.route.label}`}>
               {b.pickups.map((p, idx) => (
@@ -250,51 +325,52 @@ export function RouteMap({
                   key={`${b.route.label}-p-${idx}`}
                   position={[p.lat, p.lng]}
                   icon={stopIcon(b.color, String(idx + 1), dim)}
+                  zIndexOffset={dim ? 0 : 300}
                   eventHandlers={{ click: () => onSelect(b.route.label) }}
                 >
                   <Popup>
                     <strong>
-                      {b.route.label} stop {idx + 1}
+                      {b.route.label} · stop {idx + 1}
                     </strong>
                     <br />
                     {p.names.join(", ")}
                   </Popup>
                 </Marker>
               ))}
-              <CircleMarker
-                center={[b.drop.lat, b.drop.lng]}
-                radius={9}
-                pathOptions={{
-                  color: "#0b0e10",
-                  fillColor: b.color,
-                  fillOpacity: dim ? 0.25 : 1,
-                  weight: 2,
-                }}
+              <Marker
+                position={[b.drop.lat, b.drop.lng]}
+                icon={dropIcon(b.color, dim)}
+                zIndexOffset={dim ? 0 : 400}
                 eventHandlers={{ click: () => onSelect(b.route.label) }}
               >
-                <Tooltip permanent direction="top" offset={[0, -10]}>
+                {/* Labels only when a route is picked, otherwise they collide */}
+                <Tooltip
+                  className="kr-zone"
+                  permanent={showLabel}
+                  direction="top"
+                  offset={[0, -10]}
+                >
                   {b.route.zone}
                 </Tooltip>
-              </CircleMarker>
+              </Marker>
             </Fragment>
           );
         })}
 
-      {/* Pickup dots in baseline view */}
       {!consolidated &&
         shipments.map((s) => (
           <CircleMarker
             key={`bp-${s.reference}`}
             center={[s.originLat, s.originLng]}
-            radius={5}
+            radius={3.5}
             pathOptions={{
-              color: "#fff",
-              fillColor: "#ff6b2c",
-              fillOpacity: 1,
+              color: "#0b0e10",
+              fillColor: "#ff7a33",
+              fillOpacity: 0.9,
               weight: 1.5,
             }}
           >
-            <Tooltip>
+            <Tooltip className="kr-zone">
               {s.supplierName} · {s.reference} · {s.weightKg} kg
             </Tooltip>
           </CircleMarker>

@@ -174,3 +174,31 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .kf-spin, .kf-sweep::before, .kf-enter { animation: none; }
 }
+
+/* Directional flow along route lines. The dash marches toward the drop. */
+@keyframes kr-flow {
+  to { stroke-dashoffset: -240; }
+}
+.kr-flow {
+  animation: kr-flow 6s linear infinite;
+}
+.kr-flow-fast {
+  animation: kr-flow 2.6s linear infinite;
+}
+
+/* Zone chips: quieter than a default leaflet tooltip, and never boxed in. */
+.leaflet-tooltip.kr-zone {
+  background: rgba(8, 9, 10, 0.82) !important;
+  color: var(--kf-ink) !important;
+  border: 1px solid var(--kf-border) !important;
+  border-radius: 999px !important;
+  padding: 2px 8px !important;
+  font: 600 10px/1.4 ui-sans-serif, system-ui, sans-serif !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+.leaflet-tooltip.kr-zone::before { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-flow, .kr-flow-fast { animation: none; }
+}
