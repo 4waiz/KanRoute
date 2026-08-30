@@ -161,7 +161,21 @@ export function OutcomeGauge({
   };
 
   const sum = segments.reduce((a, s) => a + s.value, 0) || 1;
-  let cursor = START;
+  // Precompute each arc so nothing is mutated during render.
+  const arcs = segments.reduce<
+    { label: string; color: string; from: number; to: number }[]
+  >((acc, s) => {
+    const prevEnd = acc.length > 0 ? acc[acc.length - 1].to : START;
+    return [
+      ...acc,
+      {
+        label: s.label,
+        color: s.color,
+        from: prevEnd,
+        to: prevEnd + (s.value / sum) * SWEEP,
+      },
+    ];
+  }, []);
 
   return (
     <div
@@ -176,22 +190,18 @@ export function OutcomeGauge({
           strokeWidth={stroke}
           strokeLinecap="round"
         />
-        {segments.map((s) => {
-          if (s.value <= 0) return null;
-          const span = (s.value / sum) * SWEEP;
-          const d = arc(cursor + 1.4, cursor + span - 1.4);
-          cursor += span;
-          return (
+        {arcs.map((a) =>
+          a.to - a.from <= 0 ? null : (
             <path
-              key={s.label}
-              d={d}
+              key={a.label}
+              d={arc(a.from + 1.4, a.to - 1.4)}
               fill="none"
-              stroke={s.color}
+              stroke={a.color}
               strokeWidth={stroke}
               strokeLinecap="round"
             />
-          );
-        })}
+          ),
+        )}
       </svg>
       <div
         className="absolute inset-x-0 flex flex-col items-center"
