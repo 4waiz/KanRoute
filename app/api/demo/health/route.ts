@@ -1,5 +1,5 @@
 /**
- * ForgeRelay — synthetic demonstration target for KanForge.
+ * ForgeRelay - synthetic demonstration target for KanForge.
  *
  * Backs the documented claim:
  *   "GET /api/demo/health returns an OK status and the current API version."

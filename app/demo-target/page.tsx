@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "ForgeRelay — Webhook Infrastructure (Synthetic Demo Target)",
+  title: "ForgeRelay - Webhook Infrastructure (Synthetic Demo Target)",
   description:
     "ForgeRelay is a fictional webhook delivery platform used as a synthetic demonstration target for KanForge.",
 };
@@ -39,7 +39,7 @@ export default function DemoTargetPage() {
       <div className="mx-auto max-w-3xl px-6 py-16">
         <div className="mb-10 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <p className="text-sm font-medium text-amber-300">
-            Synthetic demonstration target — not a real company.
+            Synthetic demonstration target - not a real company.
           </p>
           <p className="mt-1 text-xs text-amber-200/70">
             ForgeRelay is fictional. This page exists solely so KanForge has a

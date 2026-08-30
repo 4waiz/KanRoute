@@ -63,7 +63,7 @@ export const jobStatus = v.union(
   v.literal("timeout"),
 );
 
-/** Which system produced an event — drives the Technology Trace. */
+/** Which system produced an event - drives the Technology Trace. */
 export const provider = v.union(
   v.literal("context.dev"),
   v.literal("convex"),

@@ -6,7 +6,7 @@ import { action, internalAction, mutation } from "./_generated/server";
 
 const DEVIN_BASE = "https://api.devin.ai/v3";
 
-/** Bounded orchestration — never poll or nudge forever. */
+/** Bounded orchestration - never poll or nudge forever. */
 const POLL_INTERVAL_MS = 15_000;
 const MAX_POLLS = 40; // ~10 minutes
 const MAX_ACU_LIMIT = 3;
@@ -347,7 +347,7 @@ export const pollSession = internalAction({
         jobId,
         provider: "kanforge",
         type: "devin.nudged",
-        message: "Devin stalled without structured output — sending one follow-up.",
+        message: "Devin stalled without structured output - sending one follow-up.",
       });
 
       await fetch(
@@ -390,7 +390,7 @@ export const pollSession = internalAction({
         jobId,
         provider: "kanforge",
         type: "verification.escalated",
-        message: "No structured output after one nudge — escalated to human review.",
+        message: "No structured output after one nudge - escalated to human review.",
       });
       return null;
     }

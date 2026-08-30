@@ -3,11 +3,12 @@
 import { useMutation, useQuery } from "convex/react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { ExternalLink, Play, Radio, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { KanForgeWordmark } from "@/components/KanForgeMark";
+import { ExecutionProof } from "@/components/ExecutionProof";
 import { Headline, PipelineStrip, VerifiabilityNote } from "@/components/Narrative";
 import {
   MetricTile,
@@ -222,6 +223,9 @@ type EvidenceDoc = {
   claimId: string;
   expected?: string;
   observed?: string;
+  verdict?: string;
+  commands?: string[];
+  items?: { type: string; title: string; details: string }[];
 };
 
 type JobDoc = {
@@ -294,19 +298,47 @@ function ClaimBoard({
     );
   }
 
+  // Executable claims first: the ones KanForge can actually settle lead the board.
+  const ordered = [...claims].sort((a, b) => {
+    const rank = (c: ClaimDoc) => (c.verifiability === "executable" ? 0 : 1);
+    return rank(a) - rank(b) || a.order - b.order;
+  });
+
   return (
     <Shell>
       <div className="divide-y divide-[var(--kf-border)]">
-        {claims.map((c) => {
+        {ordered.map((c, idx) => {
           const job = jobByClaim.get(c._id);
           const isExec = c.verifiability === "executable";
+          const prev = idx > 0 ? ordered[idx - 1] : null;
+          const startsGroup =
+            idx === 0 || (prev !== null && (prev.verifiability === "executable") !== isExec);
           const busy =
             pending === c._id ||
             ["queued", "devin_inspecting", "devin_testing"].includes(c.status);
 
           return (
+            <Fragment key={c._id}>
+            {startsGroup && (
+              <div className="flex items-baseline gap-2 bg-black/25 px-4 py-2">
+                <span
+                  className="text-[10px] font-semibold uppercase tracking-[0.14em]"
+                  style={{
+                    color: isExec ? "var(--kf-running)" : "var(--kf-review)",
+                  }}
+                >
+                  {isExec
+                    ? "Provable by running the code"
+                    : "Cannot be settled by code"}
+                </span>
+                <span className="text-[10px] text-[var(--kf-text-faint)]">
+                  {isExec
+                    ? "Devin inspects the repository and executes a test"
+                    : "Needs external evidence or human judgement"}
+                </span>
+              </div>
+            )}
             <button
-              key={c._id}
               onClick={() => onSelect(c._id)}
               className={`kf-enter flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition hover:bg-white/[0.025] ${
                 selected === c._id ? "bg-white/[0.035]" : ""
@@ -369,6 +401,7 @@ function ClaimBoard({
                 </span>
               )}
             </button>
+            </Fragment>
           );
         })}
       </div>
@@ -499,7 +532,7 @@ function EvidencePanel({
                   </div>
                   <Compare
                     label="Observed"
-                    value={evidence.observed ?? "—"}
+                    value={evidence.observed ?? "n/a"}
                     color={
                       evidence.verdict === "FAIL"
                         ? "var(--kf-fail)"
@@ -508,6 +541,16 @@ function EvidencePanel({
                   />
                 </div>
               </div>
+            )}
+
+            {evidence && (evidence.commands?.length ?? 0) > 0 && (
+              <ExecutionProof
+                commands={evidence.commands ?? []}
+                items={evidence.items ?? []}
+                expected={evidence.expected}
+                observed={evidence.observed}
+                verdict={evidence.verdict}
+              />
             )}
 
             {evidence?.summary && (

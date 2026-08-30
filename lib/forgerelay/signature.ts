@@ -1,5 +1,5 @@
 /**
- * ForgeRelay — synthetic demonstration target for KanForge.
+ * ForgeRelay - synthetic demonstration target for KanForge.
  * NOT a real company. NOT production code.
  *
  * Backs the documented claim:

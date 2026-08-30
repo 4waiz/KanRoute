@@ -118,7 +118,7 @@ export function MetricTile({
   );
 }
 
-/** Large verification ring — the single glanceable "how proven is this" number. */
+/** Large verification ring - the single glanceable "how proven is this" number. */
 export function VerificationRing({
   proven,
   total,

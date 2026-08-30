@@ -1,4 +1,4 @@
-# KanForge — Architecture
+# KanForge - Architecture
 
 ## Overview
 
@@ -36,11 +36,11 @@ Five tables, all in `convex/schema.ts`.
 
 KanForge follows the Convex pattern strictly:
 
-1. **Client captures intent** — `analyses.create` / `devin.verifyClaim` are mutations. They validate, write durable state, and schedule work. They never call the network.
-2. **Scheduler hands off** — `ctx.scheduler.runAfter(0, ...)` moves execution to an action.
-3. **Actions do external I/O** — `contextPipeline.runExtraction` and `devin.startSession` / `devin.pollSession` are the only places that touch the network.
-4. **Actions write back through internal mutations** — never directly, since actions have no `ctx.db`.
-5. **UI reads reactive queries** — `useQuery` re-renders on change. No client polling anywhere.
+1. **Client captures intent** - `analyses.create` / `devin.verifyClaim` are mutations. They validate, write durable state, and schedule work. They never call the network.
+2. **Scheduler hands off** - `ctx.scheduler.runAfter(0, ...)` moves execution to an action.
+3. **Actions do external I/O** - `contextPipeline.runExtraction` and `devin.startSession` / `devin.pollSession` are the only places that touch the network.
+4. **Actions write back through internal mutations** - never directly, since actions have no `ctx.db`.
+5. **UI reads reactive queries** - `useQuery` re-renders on change. No client polling anywhere.
 
 This split is why a long-running Devin session doesn't block anything: the mutation returns instantly, and the board animates forward as the scheduler drives the job.
 
@@ -55,9 +55,9 @@ app.use(contextDev, { env: { CONTEXT_DEV_API_KEY: app.env.CONTEXT_DEV_API_KEY } 
 
 The key is declared as a typed environment contract and lives only on the Convex deployment.
 
-`contextPipeline.runExtraction` calls `/web/extract` with a JSON Schema describing a claim. The endpoint crawls the site and returns objects already matching that schema, so KanForge does no free-text parsing. The instructions deliberately push the classifier to be conservative — compliance certifications and SLAs are explicitly never `executable`.
+`contextPipeline.runExtraction` calls `/web/extract` with a JSON Schema describing a claim. The endpoint crawls the site and returns objects already matching that schema, so KanForge does no free-text parsing. The instructions deliberately push the classifier to be conservative - compliance certifications and SLAs are explicitly never `executable`.
 
-Cost controls: `maxPages: 6` bounds the crawl and `maxAgeMs: 604800000` (7 days) lets repeated runs reuse the upstream crawl, which cuts latency roughly in half. `extract` is billed flat at 10 credits per call regardless of `maxPages` — measured against the live account, two extractions consumed 20 credits — so the cache buys speed and determinism, not free calls, and raising page coverage costs nothing extra.
+Cost controls: `maxPages: 6` bounds the crawl and `maxAgeMs: 604800000` (7 days) lets repeated runs reuse the upstream crawl, which cuts latency roughly in half. `extract` is billed flat at 10 credits per call regardless of `maxPages` - measured against the live account, two extractions consumed 20 credits - so the cache buys speed and determinism, not free calls, and raising page coverage costs nothing extra.
 
 ## Devin integration
 
@@ -65,11 +65,11 @@ Cost controls: `maxPages: 6` bounds the crawl and `maxAgeMs: 604800000` (7 days)
 
 Session creation posts to `POST /v3/organizations/{org_id}/sessions` with:
 
-- `prompt` — a verify-don't-implement instruction carrying the claim, its source excerpt, expected behaviour, and suggested strategy
+- `prompt` - a verify-don't-implement instruction carrying the claim, its source excerpt, expected behaviour, and suggested strategy
 - `repos: [owner/repo]` **and** the full URL inside the prompt (the `repos` field is undocumented, so we supply both)
-- `structured_output_schema` — the verdict contract, validated server-side by Devin
-- `max_acu_limit: 3` — hard spend cap
-- `resumable: false` — disposable session
+- `structured_output_schema` - the verdict contract, validated server-side by Devin
+- `max_acu_limit: 3` - hard spend cap
+- `resumable: false` - disposable session
 
 ### Bounded poll/nudge state machine
 

@@ -1,30 +1,30 @@
-# KanForge — Demo Guide
+# KanForge - Demo Guide
 
 ## Three-minute demo script
 
-**0:00 – 0:20 — The problem**
+**0:00 - 0:20 - The problem**
 
-> "Every software company publishes technical claims. Retry counts, signing algorithms, endpoint behaviour, compliance. And documentation drifts from implementation constantly — someone lowers a retry budget in a hotfix, the docs never change, and nobody finds out until an integration breaks in production. Checking that docs still match code is slow, manual, and nobody's job."
+> "Every software company publishes technical claims. Retry counts, signing algorithms, endpoint behaviour, compliance. And documentation drifts from implementation constantly - someone lowers a retry budget in a hotfix, the docs never change, and nobody finds out until an integration breaks in production. Checking that docs still match code is slow, manual, and nobody's job."
 
-**0:20 – 0:35 — What KanForge is**
+**0:20 - 0:35 - What KanForge is**
 
 > "KanForge doesn't ask an AI whether a claim sounds credible. It runs the claim."
 
 Show the landing page. Point at the pipeline strip: Context.dev extracts → Convex orchestrates → Devin proves.
 
-**0:35 – 1:00 — Extraction is real**
+**0:35 - 1:00 - Extraction is real**
 
 Click **Load demo target**, then **Analyze claims**.
 
-> "That's a live Context.dev call against a public page. It crawls the target and returns claims already shaped to a JSON Schema we hand it — each one tied to its source URL and a verbatim excerpt."
+> "That's a live Context.dev call against a public page. It crawls the target and returns claims already shaped to a JSON Schema we hand it - each one tied to its source URL and a verbatim excerpt."
 
 Claims appear on the board as Convex persists them.
 
-**1:00 – 1:20 — The classification is the credibility**
+**1:00 - 1:20 - The classification is the credibility**
 
-> "Six claims. But look — only three are marked executable. KanForge decided the SOC 2 claim, the uptime SLA, and 'most loved platform' cannot be settled by running a repository. It says so, and it says why. It will never hand you a green tick for a compliance certification."
+> "Six claims. But look - only three are marked executable. KanForge decided the SOC 2 claim, the uptime SLA, and 'most loved platform' cannot be settled by running a repository. It says so, and it says why. It will never hand you a green tick for a compliance certification."
 
-**1:20 – 2:15 — The proof**
+**1:20 - 2:15 - The proof**
 
 Select **"Failed webhook deliveries are retried exactly three times."** Click **Verify**.
 
@@ -32,23 +32,23 @@ Select **"Failed webhook deliveries are retried exactly three times."** Click **
 
 Show the live status moving through DEVIN TESTING. Then the verdict lands:
 
-> **FAIL — Expected `3 retries`, Observed `2 retries`.**
+> **FAIL - Expected `3 retries`, Observed `2 retries`.**
 
 Open the evidence panel.
 
-> "This isn't a model's opinion. Devin found `MAX_RETRIES = 2` in `webhook-delivery.ts`, compiled a TypeScript test against a permanently failing transport, ran it, and counted three transport calls and two retries. Here are the commands it ran, the files it inspected, the test it created — and the Devin session ID, so you can open the session and watch it happen."
+> "This isn't a model's opinion. Devin found `MAX_RETRIES = 2` in `webhook-delivery.ts`, compiled a TypeScript test against a permanently failing transport, ran it, and counted three transport calls and two retries. Here are the commands it ran, the files it inspected, the test it created - and the Devin session ID, so you can open the session and watch it happen."
 
-**2:15 – 2:40 — The other two outcomes**
+**2:15 - 2:40 - The other two outcomes**
 
 Show a PASS claim (HMAC SHA-256 signing), then a HUMAN REVIEW claim.
 
-> "PASS when evidence supports the claim. And human review is a feature, not a failure — it tells you exactly what evidence would settle it instead."
+> "PASS when evidence supports the claim. And human review is a feature, not a failure - it tells you exactly what evidence would settle it instead."
 
-**2:40 – 2:55 — Technology Trace**
+**2:40 - 2:55 - Technology Trace**
 
 > "Every line here is a real recorded event. Context.dev extracted. Convex persisted. Devin verified. Convex stored the evidence. Nothing here is decorative."
 
-**2:55 – 3:00 — Close**
+**2:55 - 3:00 - Close**
 
 > "KanForge turns technical promises into executable evidence. Claims in. Evidence out."
 
@@ -73,7 +73,7 @@ Measured on the real pipeline:
 | Context.dev extraction (6 claims, 1 page) | ~23 s |
 | Devin FAIL verification (webhook retries) | ~92 s, 0 ACUs |
 
-The 7-day `maxAgeMs` cache makes a repeated extraction against the same URL noticeably faster (~10s vs ~23s measured), because Context.dev reuses the upstream crawl. It still costs 10 credits per call, but with 3,218 credits that is roughly 320 runs — rehearse freely. This is a real API response every time, never substituted fixture data.
+The 7-day `maxAgeMs` cache makes a repeated extraction against the same URL noticeably faster (~10s vs ~23s measured), because Context.dev reuses the upstream crawl. It still costs 10 credits per call, but with 3,218 credits that is roughly 320 runs - rehearse freely. This is a real API response every time, never substituted fixture data.
 
 ## If something fails live
 

@@ -1,5 +1,5 @@
 /**
- * ForgeRelay — synthetic demonstration target for KanForge.
+ * ForgeRelay - synthetic demonstration target for KanForge.
  * NOT a real company. NOT production code.
  *
  * This module backs the documented claim:
@@ -35,7 +35,7 @@ export type Transport = (payload: unknown, attempt: number) => Promise<boolean>;
  * Deliver a webhook payload, retrying on failure.
  *
  * Retries are capped by MAX_RETRIES (2), even though the public documentation
- * claims three. Do not "fix" this — the discrepancy is the demo.
+ * claims three. Do not "fix" this - the discrepancy is the demo.
  */
 export async function deliverWebhook(
   payload: unknown,

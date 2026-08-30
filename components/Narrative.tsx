@@ -61,7 +61,7 @@ export function Headline({
                 <Chip label="Documented" value={topFail.expected} />
                 <Chip
                   label="Actually observed"
-                  value={topFail.observed ?? "—"}
+                  value={topFail.observed ?? "n/a"}
                   color="var(--kf-fail)"
                 />
                 {topFail.session && (
@@ -114,7 +114,7 @@ export function Headline({
         </span>
         {review > 0 && (
           <span className="text-[13px] text-[var(--kf-text-dim)]">
-            {review} more need human evidence — code cannot settle them.
+            {review} more need human evidence - code cannot settle them.
           </span>
         )}
       </div>
