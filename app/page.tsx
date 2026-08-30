@@ -64,34 +64,34 @@ export default function StartPage() {
   }
 
   return (
-    <main className="kf-grid-bg min-h-screen">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6">
-        <header className="flex items-center justify-between py-7">
+    <main className="min-h-screen p-3 sm:p-5">
+      <div className="kf-shell mx-auto flex min-h-[calc(100vh-40px)] max-w-[1200px] flex-col p-6 sm:p-9">
+        <header className="flex flex-wrap items-center justify-between gap-4">
           <KanForgeWordmark />
-          <div className="hidden items-center gap-4 text-[11px] uppercase tracking-wider text-[var(--kf-text-faint)] sm:flex">
+          <div className="flex items-center gap-2">
             <Health label="Context.dev" />
             <Health label="Convex" />
             <Health label="Devin" />
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col justify-center pb-24">
+        <div className="flex flex-1 flex-col justify-center py-12">
           <div className="max-w-2xl">
-            <h1 className="text-[42px] font-semibold leading-[1.05] tracking-tight text-white sm:text-[56px]">
+            <h1 className="text-[42px] font-semibold leading-[1.04] tracking-tight text-[var(--kf-ink)] sm:text-[60px]">
               Technical claims,
               <br />
               <span style={{ color: "var(--kf-accent)" }}>
                 forged into proof.
               </span>
             </h1>
-            <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-[var(--kf-text-dim)]">
+            <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-[var(--kf-ink-2)]">
               KanForge does not ask a model whether a claim sounds believable.
               It extracts the claim from your documentation, then runs it
               against your repository and returns the evidence.
             </p>
           </div>
 
-          <div className="kf-panel mt-11 max-w-2xl rounded-xl p-5">
+          <div className="kf-card mt-10 max-w-2xl p-5">
             <Field
               label="Company / product website"
               placeholder="https://example.com/docs"
@@ -117,11 +117,11 @@ export default function StartPage() {
               <button
                 onClick={analyze}
                 disabled={busy}
-                className="group inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-[13px] font-medium text-black transition disabled:opacity-60"
-                style={{ background: "var(--kf-accent)" }}
+                className="group inline-flex items-center gap-2 rounded-full px-5 py-3 text-[13px] font-semibold text-white transition disabled:opacity-60"
+                style={{ background: "var(--kf-ink)" }}
               >
                 {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 kf-spin" />
                 ) : (
                   <Sparkles className="h-4 w-4" />
                 )}
@@ -132,21 +132,21 @@ export default function StartPage() {
               <button
                 onClick={loadDemo}
                 disabled={busy}
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--kf-border-strong)] px-4 py-2.5 text-[13px] font-medium text-[var(--kf-text-dim)] transition hover:text-white disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full bg-[var(--kf-card-sub)] px-5 py-3 text-[13px] font-semibold text-[var(--kf-ink-2)] transition hover:text-[var(--kf-ink)] disabled:opacity-60"
               >
                 <Boxes className="h-4 w-4" />
                 Load demo target
               </button>
 
               {isDemo && (
-                <span className="text-[11px] uppercase tracking-wider text-[var(--kf-review)]">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--kf-review)]">
                   Synthetic target loaded
                 </span>
               )}
             </div>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-[var(--kf-text-faint)]">
+          <div className="mt-8 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--kf-ink-3)]">
             <span>Context.dev extracts</span>
             <span>/</span>
             <span>Convex orchestrates</span>
@@ -163,7 +163,7 @@ export default function StartPage() {
 
 function Health({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="kf-chip inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-[var(--kf-ink-2)]">
       <span
         className="h-1.5 w-1.5 rounded-full"
         style={{ background: "var(--kf-pass)" }}
@@ -186,7 +186,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] uppercase tracking-[0.16em] text-[var(--kf-text-faint)]">
+      <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--kf-ink-3)]">
         {label}
       </span>
       <input
@@ -194,7 +194,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         spellCheck={false}
-        className="w-full rounded-lg border border-[var(--kf-border)] bg-black/40 px-3.5 py-2.5 font-mono text-[13px] text-white outline-none transition placeholder:text-[var(--kf-text-faint)] focus:border-[var(--kf-accent)]"
+        className="w-full rounded-xl bg-[var(--kf-card-sub)] px-4 py-3 font-mono text-[13px] text-[var(--kf-ink)] outline-none transition placeholder:text-[var(--kf-ink-3)] focus:ring-2 focus:ring-[var(--kf-accent)]"
       />
     </label>
   );

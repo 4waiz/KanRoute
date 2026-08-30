@@ -6,8 +6,8 @@ type EvidenceItem = { type: string; title: string; details: string };
 
 /**
  * The strongest thing KanForge can show a sceptic: the actual command an agent
- * ran and the output it observed. Rendered as a terminal because that is what
- * it is - not a model's summary of a test, but the test.
+ * ran and the output it observed. Kept dark on the light dashboard, matching
+ * the reference design's use of black callouts for the load-bearing detail.
  */
 export function ExecutionProof({
   commands,
@@ -25,8 +25,7 @@ export function ExecutionProof({
   const run = items.find(
     (i) => i.type === "test_run" || i.type === "test" || i.type === "command",
   );
-  // The command that actually executed the test is the last one - earlier ones
-  // are usually setup (clone, install, compile).
+  // The last command is the one that executed the test; earlier ones are setup.
   const runCommand = commands.length > 0 ? commands[commands.length - 1] : null;
 
   if (!run && !runCommand) return null;
@@ -34,46 +33,42 @@ export function ExecutionProof({
   const failed = verdict === "FAIL";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--kf-border)]">
-      <div className="flex items-center gap-2 border-b border-[var(--kf-border)] bg-black/50 px-3 py-2">
-        <Terminal className="h-3.5 w-3.5 text-[var(--kf-text-faint)]" />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--kf-text-dim)]">
+    <div className="overflow-hidden rounded-2xl bg-[var(--kf-ink)]">
+      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
+        <Terminal className="h-3.5 w-3.5 text-white/45" />
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">
           Executed by Devin
         </span>
-        <span className="ml-auto flex gap-1">
+        <span className="ml-auto flex gap-1.5">
           <Dot color="#ff5f57" />
           <Dot color="#febc2e" />
           <Dot color="#28c840" />
         </span>
       </div>
 
-      <div className="bg-black/70 px-3 py-3 font-mono text-[11px] leading-relaxed">
+      <div className="px-4 py-3.5 font-mono text-[11px] leading-relaxed">
         {runCommand && (
           <div className="flex gap-2">
-            <span className="shrink-0 select-none text-[var(--kf-pass)]">$</span>
-            <span className="break-all text-[var(--kf-text)]">{runCommand}</span>
+            <span className="shrink-0 select-none text-[#35c46b]">$</span>
+            <span className="break-all text-white/90">{runCommand}</span>
           </div>
         )}
 
         {run && (
-          <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words text-[var(--kf-text-dim)]">
+          <pre className="mt-2.5 max-h-56 overflow-auto whitespace-pre-wrap break-words text-white/55">
             {run.details}
           </pre>
         )}
 
         {expected && observed && (
-          <div className="mt-3 border-t border-[var(--kf-border)] pt-2.5">
+          <div className="mt-3.5 border-t border-white/10 pt-3">
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-[var(--kf-text-faint)]">documented:</span>
-              <span className="text-[var(--kf-text)]">{expected}</span>
+              <span className="text-white/40">documented:</span>
+              <span className="text-white/90">{expected}</span>
             </div>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
-              <span className="text-[var(--kf-text-faint)]">observed:</span>
-              <span
-                style={{
-                  color: failed ? "var(--kf-fail)" : "var(--kf-pass)",
-                }}
-              >
+              <span className="text-white/40">observed:</span>
+              <span style={{ color: failed ? "#ff6b60" : "#4fd98a" }}>
                 {observed}
               </span>
             </div>
@@ -87,7 +82,7 @@ export function ExecutionProof({
 function Dot({ color }: { color: string }) {
   return (
     <span
-      className="h-2 w-2 rounded-full opacity-60"
+      className="h-2.5 w-2.5 rounded-full opacity-70"
       style={{ background: color }}
     />
   );

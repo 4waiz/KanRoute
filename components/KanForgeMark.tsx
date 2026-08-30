@@ -1,5 +1,11 @@
 /** KanForge mark: an anvil-derived hexagon with a struck cleft. Pure SVG. */
-export function KanForgeMark({ size = 28 }: { size?: number }) {
+export function KanForgeMark({
+  size = 26,
+  color = "var(--kf-accent)",
+}: {
+  size?: number;
+  color?: string;
+}) {
   return (
     <svg
       width={size}
@@ -10,14 +16,14 @@ export function KanForgeMark({ size = 28 }: { size?: number }) {
     >
       <path
         d="M16 2.5 27.2 9v14L16 29.5 4.8 23V9L16 2.5Z"
-        stroke="var(--kf-accent)"
-        strokeWidth="1.6"
+        stroke={color}
+        strokeWidth="1.7"
         strokeLinejoin="round"
       />
       <path
         d="M11 12.5h10L17.4 16l3.6 3.5H11"
-        stroke="var(--kf-accent)"
-        strokeWidth="1.9"
+        stroke={color}
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -33,11 +39,11 @@ export function KanForgeWordmark({ compact = false }: { compact?: boolean }) {
         <div
           className={`font-semibold tracking-tight ${compact ? "text-[15px]" : "text-lg"}`}
         >
-          <span className="text-white">KAN</span>
+          <span className="text-[var(--kf-ink)]">KAN</span>
           <span style={{ color: "var(--kf-accent)" }}>FORGE</span>
         </div>
         {!compact && (
-          <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--kf-text-faint)]">
+          <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--kf-ink-3)]">
             Claims in. Evidence out.
           </div>
         )}

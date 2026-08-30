@@ -40,7 +40,7 @@ export function statusColor(status: string, verdict?: string): string {
   if (status === "human_review") return "var(--kf-review)";
   if (status === "error") return "var(--kf-fail)";
   if (RUNNING_STATUSES.includes(status)) return "var(--kf-running)";
-  return "var(--kf-text-faint)";
+  return "var(--kf-ink-3)";
 }
 
 export function StatusGlyph({
@@ -53,8 +53,8 @@ export function StatusGlyph({
   size?: number;
 }) {
   const color = statusColor(status, verdict);
-  const cls = "shrink-0";
   const style = { color, width: size, height: size };
+  const cls = "shrink-0";
 
   if (status === "pass" || verdict === "PASS")
     return <CheckCircle2 className={cls} style={style} />;
@@ -65,7 +65,7 @@ export function StatusGlyph({
   if (status === "error" || verdict === "ERROR")
     return <AlertTriangle className={cls} style={style} />;
   if (RUNNING_STATUSES.includes(status))
-    return <Loader2 className={`${cls} animate-spin`} style={style} />;
+    return <Loader2 className={`${cls} kf-spin`} style={style} />;
   return <CircleDashed className={cls} style={style} />;
 }
 
@@ -80,8 +80,11 @@ export function StatusPill({
   const label = verdict && verdict !== "ERROR" ? verdict : status;
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
-      style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
+      style={{
+        color,
+        background: `color-mix(in srgb, ${color} 13%, white)`,
+      }}
     >
       <StatusGlyph status={status} verdict={verdict} size={12} />
       {statusLabel(label)}
@@ -89,104 +92,166 @@ export function StatusPill({
   );
 }
 
-export function MetricTile({
-  label,
+/** Big headline number with a small pill beside it, as in the reference. */
+export function KpiNumber({
   value,
-  accent,
-  sub,
+  label,
+  pill,
+  pillColor,
 }: {
-  label: string;
   value: ReactNode;
-  accent?: string;
-  sub?: string;
+  label: string;
+  pill?: string;
+  pillColor?: string;
 }) {
   return (
-    <div className="kf-panel flex flex-col justify-center rounded-xl px-4 py-2.5">
-      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--kf-text-faint)]">
-        {label}
+    <div className="text-right">
+      <div className="flex items-center justify-end gap-2.5">
+        <span className="text-[38px] font-semibold leading-none tracking-tight tabular-nums text-[var(--kf-ink)]">
+          {value}
+        </span>
+        {pill && (
+          <span
+            className="kf-chip px-2.5 py-1 text-[11px] font-medium"
+            style={{ color: pillColor ?? "var(--kf-ink-2)" }}
+          >
+            {pill}
+          </span>
+        )}
       </div>
-      <div
-        className="mt-1 text-[27px] font-semibold leading-none tabular-nums"
-        style={{ color: accent ?? "#fff" }}
-      >
-        {value}
-      </div>
-      {sub && (
-        <div className="mt-1.5 text-[11px] text-[var(--kf-text-faint)]">{sub}</div>
-      )}
+      <div className="mt-1.5 text-[12px] text-[var(--kf-ink-3)]">{label}</div>
     </div>
   );
 }
 
-/** Large verification ring - the single glanceable "how proven is this" number. */
-export function VerificationRing({
-  proven,
+type Segment = { label: string; value: number; color: string };
+
+/**
+ * Stacked arc gauge. Shows the outcome mix rather than a bare percentage,
+ * because "2 pass / 1 fail / 3 review" is the interesting shape, not "100%".
+ */
+export function OutcomeGauge({
+  segments,
   total,
-  size = 108,
+  caption,
+  size = 210,
 }: {
-  proven: number;
+  segments: Segment[];
   total: number;
+  caption: string;
   size?: number;
 }) {
-  const pct = total > 0 ? proven / total : 0;
-  const stroke = 9;
-  const r = (size - stroke) / 2 - 6;
-  const circumference = 2 * Math.PI * r;
-  const dash = circumference * pct;
+  const stroke = 16;
+  const r = size / 2 - stroke;
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // 270-degree arc opening at the bottom, matching the reference gauge.
+  const START = 135;
+  const SWEEP = 270;
+  const toXY = (deg: number) => {
+    const rad = ((deg - 90) * Math.PI) / 180;
+    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+  };
+  const arc = (from: number, to: number) => {
+    const [x1, y1] = toXY(from);
+    const [x2, y2] = toXY(to);
+    const large = to - from > 180 ? 1 : 0;
+    return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+  };
+
+  const sum = segments.reduce((a, s) => a + s.value, 0) || 1;
+  let cursor = START;
 
   return (
     <div
-      className="relative grid place-items-center"
-      style={{ width: size, height: size }}
+      className="relative shrink-0"
+      style={{ width: size, height: size * 0.88 }}
     >
-      <svg width={size} height={size} className="-rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
+      <svg width={size} height={size} className="absolute left-0 top-0">
+        <path
+          d={arc(START, START + SWEEP)}
           fill="none"
-          stroke="rgba(255,255,255,0.07)"
-          strokeWidth={stroke}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="var(--kf-accent)"
+          stroke="rgba(12,18,17,0.06)"
           strokeWidth={stroke}
           strokeLinecap="round"
-          strokeDasharray={`${dash} ${circumference}`}
-          style={{ transition: "stroke-dasharray 700ms cubic-bezier(.22,1,.36,1)" }}
         />
+        {segments.map((s) => {
+          if (s.value <= 0) return null;
+          const span = (s.value / sum) * SWEEP;
+          const d = arc(cursor + 1.4, cursor + span - 1.4);
+          cursor += span;
+          return (
+            <path
+              key={s.label}
+              d={d}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={stroke}
+              strokeLinecap="round"
+            />
+          );
+        })}
       </svg>
-      <div className="absolute text-center">
-        <div className="text-[27px] font-semibold leading-none tabular-nums text-white">
-          {Math.round(pct * 100)}
-          <span className="text-[13px] text-[var(--kf-text-faint)]">%</span>
+      <div
+        className="absolute inset-x-0 flex flex-col items-center"
+        style={{ top: size * 0.32 }}
+      >
+        <div className="text-[40px] font-semibold leading-none tracking-tight tabular-nums text-[var(--kf-ink)]">
+          {total}
         </div>
-        <div className="mt-1 text-[9px] uppercase tracking-[0.14em] text-[var(--kf-text-faint)]">
-          Verified
-        </div>
-        <div className="mt-0.5 text-[11px] tabular-nums text-[var(--kf-text-dim)]">
-          {proven} / {total}
-        </div>
+        <div className="mt-2 text-[12px] text-[var(--kf-ink-3)]">{caption}</div>
       </div>
+    </div>
+  );
+}
+
+/** Legend row with a dotted leader line, as in the reference chart. */
+export function LeaderRow({
+  color,
+  label,
+  value,
+  muted,
+}: {
+  color: string;
+  label: string;
+  value: ReactNode;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex items-center py-[7px]">
+      <span
+        className="mr-2.5 h-2.5 w-2.5 shrink-0 rounded-full"
+        style={{ background: muted ? "rgba(12,18,17,0.16)" : color }}
+      />
+      <span
+        className="text-[13px] font-medium"
+        style={{ color: muted ? "var(--kf-ink-3)" : "var(--kf-ink)" }}
+      >
+        {label}
+      </span>
+      <span className="kf-leader" />
+      <span
+        className="text-[14px] font-semibold tabular-nums"
+        style={{ color: muted ? "var(--kf-ink-3)" : "var(--kf-ink)" }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
 
 const PROVIDER_STYLE: Record<string, { label: string; color: string }> = {
-  "context.dev": { label: "CONTEXT.DEV", color: "#7dd3fc" },
-  convex: { label: "CONVEX", color: "#f7b955" },
-  devin: { label: "DEVIN", color: "#c4b5fd" },
+  "context.dev": { label: "CONTEXT.DEV", color: "#2b8fd6" },
+  convex: { label: "CONVEX", color: "#d98324" },
+  devin: { label: "DEVIN", color: "#7c5cd6" },
   kanforge: { label: "KANFORGE", color: "var(--kf-accent)" },
 };
 
 export function ProviderTag({ provider }: { provider: string }) {
   const s = PROVIDER_STYLE[provider] ?? {
     label: provider.toUpperCase(),
-    color: "var(--kf-text-dim)",
+    color: "var(--kf-ink-3)",
   };
   return (
     <span
@@ -195,5 +260,50 @@ export function ProviderTag({ provider }: { provider: string }) {
     >
       {s.label}
     </span>
+  );
+}
+
+/** Circular icon button used in card headers. */
+export function RoundButton({
+  children,
+  onClick,
+  title,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  title?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="grid h-8 w-8 place-items-center rounded-full bg-[var(--kf-card-sub)] text-[var(--kf-ink-2)] transition hover:bg-[rgba(12,18,17,0.07)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+export function CardHeader({
+  title,
+  sub,
+  right,
+}: {
+  title: string;
+  sub?: string;
+  right?: ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-4">
+      <div>
+        <h2 className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">
+          {title}
+        </h2>
+        {sub && (
+          <p className="mt-0.5 text-[12px] text-[var(--kf-ink-3)]">{sub}</p>
+        )}
+      </div>
+      {right}
+    </div>
   );
 }

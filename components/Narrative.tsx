@@ -1,10 +1,11 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, CheckCircle2, ShieldQuestion } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldQuestion, Terminal } from "lucide-react";
 
 /**
  * The single sentence a judge should read first: what did KanForge actually
- * find? Everything else on the page is supporting detail.
+ * find? Rendered as a dark pill because that is the reference design's device
+ * for "this is the number that matters".
  */
 export function Headline({
   total,
@@ -23,106 +24,105 @@ export function Headline({
   fail: number;
   review: number;
   settledExecutable: number;
-  topFail?: { claim: string; expected?: string; observed?: string; session?: string };
+  topFail?: {
+    claim: string;
+    expected?: string;
+    observed?: string;
+    session?: string;
+  };
   onOpenFail?: () => void;
   analysisStatus?: string;
 }) {
   if (total === 0) {
     return (
-      <Band tone="neutral">
-        <span className="text-[var(--kf-text-dim)]">
+      <div className="kf-card px-5 py-4">
+        <span className="text-[14px] text-[var(--kf-ink-2)]">
           {analysisStatus === "error"
             ? "Analysis could not complete."
-            : "Reading the target's documentation and extracting technical claims…"}
+            : "Reading the target's documentation and extracting technical claims..."}
         </span>
-      </Band>
+      </div>
     );
   }
 
   if (fail > 0 && topFail) {
     return (
-      <Band tone="fail">
-        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-          <AlertTriangle
-            className="mt-0.5 h-[18px] w-[18px] shrink-0"
-            style={{ color: "var(--kf-fail)" }}
-          />
+      <div className="kf-pill-dark kf-enter px-5 py-4">
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
           <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-medium text-white">
+            <div className="text-[16px] font-semibold tracking-tight text-white">
               {fail === 1
                 ? "1 published claim is contradicted by the code."
                 : `${fail} published claims are contradicted by the code.`}
             </div>
-            <div className="mt-1 text-[13px] leading-relaxed text-[var(--kf-text-dim)]">
-              “{topFail.claim}”
+            <div className="mt-1.5 text-[13px] leading-relaxed text-white/60">
+              {topFail.claim}
             </div>
+
             {topFail.expected && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
-                <Chip label="Documented" value={topFail.expected} />
-                <Chip
-                  label="Actually observed"
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <DarkChip label="Documented" value={topFail.expected} />
+                <DarkChip
+                  label="Observed"
                   value={topFail.observed ?? "n/a"}
                   color="var(--kf-fail)"
                 />
                 {topFail.session && (
-                  <span className="font-mono text-[11px] text-[var(--kf-text-faint)]">
-                    proven by Devin session {topFail.session.slice(0, 10)}
+                  <span className="font-mono text-[11px] text-white/40">
+                    Devin {topFail.session.slice(0, 10)}
                   </span>
                 )}
               </div>
             )}
           </div>
+
           {onOpenFail && (
             <button
               onClick={onOpenFail}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium text-black"
-              style={{ background: "var(--kf-accent)" }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-[12.5px] font-semibold text-[var(--kf-ink)]"
+              style={{ background: "#fff" }}
             >
               See the proof
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
-      </Band>
+      </div>
     );
   }
 
   if (settledExecutable < executable) {
     return (
-      <Band tone="neutral">
-        <div className="flex items-center gap-3">
-          <span className="text-[15px] font-medium text-white">
-            {executable} of {total} claims can be proven by running the code.
-          </span>
-          <span className="text-[13px] text-[var(--kf-text-dim)]">
-            Run Verify to have Devin inspect the repository and test one.
-          </span>
-        </div>
-      </Band>
+      <div className="kf-card flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-4">
+        <span className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">
+          {executable} of {total} claims can be proven by running the code.
+        </span>
+        <span className="text-[13px] text-[var(--kf-ink-3)]">
+          Run Verify to have Devin inspect the repository and test one.
+        </span>
+      </div>
     );
   }
 
   return (
-    <Band tone="pass">
-      <div className="flex items-center gap-3">
-        <CheckCircle2
-          className="h-[18px] w-[18px] shrink-0"
-          style={{ color: "var(--kf-pass)" }}
-        />
-        <span className="text-[15px] font-medium text-white">
-          All {pass} testable claims held up under execution.
+    <div className="kf-card flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-4">
+      <CheckCircle2
+        className="h-[18px] w-[18px] shrink-0"
+        style={{ color: "var(--kf-pass)" }}
+      />
+      <span className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">
+        All {pass} testable claims held up under execution.
+      </span>
+      {review > 0 && (
+        <span className="text-[13px] text-[var(--kf-ink-3)]">
+          {review} more need human evidence.
         </span>
-        {review > 0 && (
-          <span className="text-[13px] text-[var(--kf-text-dim)]">
-            {review} more need human evidence - code cannot settle them.
-          </span>
-        )}
-      </div>
-    </Band>
+      )}
+    </div>
   );
 }
 
-function Chip({
+function DarkChip({
   label,
   value,
   color,
@@ -132,8 +132,8 @@ function Chip({
   color?: string;
 }) {
   return (
-    <span className="inline-flex items-baseline gap-1.5 rounded-md border border-[var(--kf-border)] bg-black/40 px-2 py-1">
-      <span className="text-[9.5px] uppercase tracking-[0.12em] text-[var(--kf-text-faint)]">
+    <span className="inline-flex items-baseline gap-2 rounded-full bg-white/10 px-3 py-1.5">
+      <span className="text-[9.5px] uppercase tracking-[0.12em] text-white/45">
         {label}
       </span>
       <span
@@ -146,35 +146,9 @@ function Chip({
   );
 }
 
-function Band({
-  tone,
-  children,
-}: {
-  tone: "fail" | "pass" | "neutral";
-  children: React.ReactNode;
-}) {
-  const border =
-    tone === "fail"
-      ? "var(--kf-fail)"
-      : tone === "pass"
-        ? "var(--kf-pass)"
-        : "var(--kf-border-strong)";
-  return (
-    <div
-      className="kf-enter rounded-xl border px-4 py-3.5"
-      style={{
-        borderColor: `color-mix(in srgb, ${border} 40%, transparent)`,
-        background: `color-mix(in srgb, ${border} 7%, transparent)`,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
 /**
- * Makes the four-stage pipeline legible at a glance, with real counts so the
- * partner contribution is visible rather than asserted.
+ * Four-stage pipeline with real counts, so the partner contribution is visible
+ * rather than asserted.
  */
 export function PipelineStrip({
   pages,
@@ -190,24 +164,24 @@ export function PipelineStrip({
   const stages = [
     {
       provider: "CONTEXT.DEV",
-      color: "#7dd3fc",
+      color: "#2b8fd6",
       title: "Read the docs",
       value: `${claims} claims`,
-      sub: pages > 0 ? `from ${pages} page${pages === 1 ? "" : "s"}` : "crawling…",
+      sub: pages > 0 ? `from ${pages} page${pages === 1 ? "" : "s"}` : "crawling...",
     },
     {
       provider: "CONVEX",
-      color: "#f7b955",
-      title: "Stored & live",
+      color: "#d98324",
+      title: "Stored and live",
       value: `${claims} records`,
       sub: "realtime, no refresh",
     },
     {
       provider: "DEVIN",
-      color: "#c4b5fd",
+      color: "#7c5cd6",
       title: "Tested the code",
       value: `${sessions} session${sessions === 1 ? "" : "s"}`,
-      sub: sessions > 0 ? "repo cloned & tested" : "not started",
+      sub: sessions > 0 ? "repo cloned and tested" : "not started",
     },
     {
       provider: "EVIDENCE",
@@ -219,12 +193,12 @@ export function PipelineStrip({
   ];
 
   return (
-    <div className="kf-panel rounded-xl px-4 py-3">
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-4">
+    <div className="kf-card px-5 py-4">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 lg:grid-cols-4">
         {stages.map((s, i) => (
           <div key={s.provider} className="relative flex items-start gap-2.5">
             <span
-              className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+              className="mt-[5px] h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ background: s.color }}
             />
             <div className="min-w-0">
@@ -234,16 +208,16 @@ export function PipelineStrip({
               >
                 {s.provider}
               </div>
-              <div className="mt-1 text-[13px] font-medium text-white">
+              <div className="mt-1 text-[13.5px] font-semibold tracking-tight text-[var(--kf-ink)]">
                 {s.title}
               </div>
-              <div className="mt-0.5 text-[12px] tabular-nums text-[var(--kf-text-dim)]">
+              <div className="mt-0.5 text-[12.5px] tabular-nums text-[var(--kf-ink-2)]">
                 {s.value}
               </div>
-              <div className="text-[11px] text-[var(--kf-text-faint)]">{s.sub}</div>
+              <div className="text-[11px] text-[var(--kf-ink-3)]">{s.sub}</div>
             </div>
             {i < stages.length - 1 && (
-              <ArrowRight className="absolute -right-2 top-3 hidden h-3 w-3 text-[var(--kf-text-faint)] lg:block" />
+              <ArrowRight className="absolute -right-2.5 top-3 hidden h-3 w-3 text-[var(--kf-ink-3)] lg:block" />
             )}
           </div>
         ))}
@@ -256,15 +230,22 @@ export function PipelineStrip({
 export function VerifiabilityNote({ verifiability }: { verifiability: string }) {
   if (verifiability === "executable") {
     return (
-      <span className="inline-flex items-center gap-1 text-[var(--kf-running)]">
+      <span
+        className="inline-flex items-center gap-1"
+        style={{ color: "var(--kf-running)" }}
+      >
+        <Terminal className="h-3 w-3" />
         Devin can test this
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[var(--kf-review)]">
+    <span
+      className="inline-flex items-center gap-1"
+      style={{ color: "var(--kf-review)" }}
+    >
       <ShieldQuestion className="h-3 w-3" />
-      Code can&apos;t prove this
+      Code cannot prove this
     </span>
   );
 }
