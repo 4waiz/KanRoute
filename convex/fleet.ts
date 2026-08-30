@@ -9,8 +9,11 @@ import {
   roadKm,
 } from "./geo";
 
-/** Cadence of the simulated dispatch clock. */
-const TICK_MS = 4000;
+/**
+ * Cadence of the simulated dispatch clock. Slow enough that vehicles stay
+ * visibly in transit across a three-minute demo.
+ */
+const TICK_MS = 11000;
 
 const PLATES = ["A 41287", "B 77310", "C 20945", "D 63118", "E 88402", "F 15736", "G 49521", "H 30684"];
 const DRIVERS = [
