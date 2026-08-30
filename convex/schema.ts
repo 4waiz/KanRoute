@@ -110,6 +110,12 @@ export default defineSchema({
     proofOutput: v.optional(v.string()),
     optimiserCode: v.optional(v.string()),
     rawResult: v.optional(v.string()),
+
+    // Why the agent grouped things the way it did, and what forced a replan.
+    strategy: v.optional(v.string()),
+    disruption: v.optional(v.string()),
+    replanOfRunId: v.optional(v.id("runs")),
+    companiesServed: v.optional(v.number()),
   }).index("by_createdAt", ["createdAt"]),
 
   /** One consolidated vehicle route produced by the optimiser. */
@@ -123,6 +129,8 @@ export default defineSchema({
     windowStart: v.optional(v.string()),
     windowEnd: v.optional(v.string()),
     shipmentRefs: v.array(v.string()),
+    companies: v.optional(v.array(v.string())),
+    rationale: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_runId", ["runId"]),
 

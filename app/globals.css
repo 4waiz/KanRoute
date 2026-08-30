@@ -213,3 +213,15 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .kr-flow, .kr-flow-fast { animation: none; }
 }
+
+/* One-shot flash when Convex pushes a new event. Keyed on the event id, so
+   React remounting the node replays it. No timers, no state. */
+@keyframes kr-ping {
+  0%   { background: color-mix(in srgb, var(--kf-pass) 30%, var(--kf-mix)); color: var(--kf-pass); }
+  100% { background: var(--kf-card-sub); color: var(--kf-ink-3); }
+}
+.kr-ping { animation: kr-ping 1.1s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-ping { animation: none; }
+}

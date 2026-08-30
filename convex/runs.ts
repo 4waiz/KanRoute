@@ -44,9 +44,16 @@ const DEMO_LOAD: { zone: string; weightKg: number }[] = [
 ];
 
 export const create = mutation({
-  args: { name: v.optional(v.string()) },
+  args: {
+    name: v.optional(v.string()),
+    disruption: v.optional(v.string()),
+    replanOfRunId: v.optional(v.id("runs")),
+  },
   returns: v.id("runs"),
-  handler: async (ctx, { name }): Promise<Id<"runs">> => {
+  handler: async (
+    ctx,
+    { name, disruption, replanOfRunId },
+  ): Promise<Id<"runs">> => {
     const suppliers = await ctx.db.query("suppliers").collect();
     // Only suppliers we could both enrich and place on the map can be routed.
     const usable = suppliers.filter(
@@ -68,6 +75,9 @@ export const create = mutation({
       status: "planning",
       createdAt: Date.now(),
       vehicleCapacityKg: cfg.vehicleCapacityKg,
+      disruption,
+      replanOfRunId,
+      companiesServed: new Set(usable.map((u) => u.name)).size,
     });
 
     let baselineKm = 0;
@@ -110,7 +120,9 @@ export const create = mutation({
       runId,
       provider: "convex",
       type: "run.created",
-      message: `${DEMO_LOAD.length} consignments staged, baseline ${Math.round(baselineKm)} km on ${DEMO_LOAD.length} separate vans`,
+      message: disruption
+        ? `Replanning ${DEMO_LOAD.length} consignments under: ${disruption.slice(0, 90)}`
+        : `${DEMO_LOAD.length} consignments from ${new Set(usable.map((u) => u.name)).size} companies staged, baseline ${Math.round(baselineKm)} km on ${DEMO_LOAD.length} separate vans`,
     });
 
     await ctx.scheduler.runAfter(0, internal.optimiser.startSession, { runId });
@@ -138,6 +150,7 @@ export const patchRun = internalMutation({
     proofOutput: v.optional(v.string()),
     optimiserCode: v.optional(v.string()),
     rawResult: v.optional(v.string()),
+    strategy: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, { runId, ...patch }) => {
@@ -162,6 +175,8 @@ export const saveRoutes = internalMutation({
         windowStart: v.optional(v.string()),
         windowEnd: v.optional(v.string()),
         shipmentRefs: v.array(v.string()),
+        companies: v.optional(v.array(v.string())),
+        rationale: v.optional(v.string()),
       }),
     ),
   },

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as disruption from "../disruption.js";
 import type * as events from "../events.js";
 import type * as fleet from "../fleet.js";
 import type * as geo from "../geo.js";
@@ -25,6 +26,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  disruption: typeof disruption;
   events: typeof events;
   fleet: typeof fleet;
   geo: typeof geo;

@@ -5,6 +5,12 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { FleetStatus, type Vehicle } from "@/components/Fleet";
+import {
+  ConsolidationFlow,
+  DisruptionPanel,
+  LiveState,
+  WhyPanel,
+} from "@/components/Ops";
 import { Panel } from "@/components/Shell";
 import { useConsole, useRouteSelection } from "@/components/useConsole";
 import { ROUTE_COLORS } from "@/lib/routeColors";
@@ -22,12 +28,18 @@ const RouteMap = dynamic(
 );
 
 export default function Overview() {
-  const { stats, routes, shipments, done } = useConsole();
+  const { stats, latest, routes, shipments, events, done } = useConsole();
   const { visible, selected, setSelected, mapRoutes, hidden, toggle } =
     useRouteSelection(routes);
   const vehicles = useQuery(api.fleet.list, {}) as Vehicle[] | undefined;
+  const scenarios = useQuery(api.disruption.scenarios, {}) as
+    | { id: string; label: string; detail: string }[]
+    | undefined;
+
   const dispatchFleet = useMutation(api.fleet.dispatch);
   const resetFleet = useMutation(api.fleet.reset);
+  const disrupt = useMutation(api.disruption.trigger);
+
   const [busy, setBusy] = useState(false);
   const [consolidated, setConsolidated] = useState(true);
 
@@ -40,36 +52,42 @@ export default function Overview() {
     }
   }
 
+  const selectedRoute = (routes ?? []).find((r) => r.label === selected);
+
   return (
-    <div className="grid min-h-0 gap-2.5 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)]">
-      {/* Only the four numbers that carry the argument. */}
-      <div className="grid shrink-0 grid-cols-2 gap-2.5 xl:grid-cols-4">
-        <Kpi
-          accent
-          label="Vans required"
-          value={`${stats?.baselineVans ?? 0} → ${stats?.usedVans ?? 0}`}
-          sub={`${stats?.vansSaved ?? 0} taken off the road`}
+    <div className="grid min-h-0 gap-2.5 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)_minmax(0,158px)]">
+      {/* Before -> Optimise -> After, with the supporting numbers */}
+      <div className="grid shrink-0 gap-2.5 xl:grid-cols-[minmax(0,1fr)_repeat(3,132px)]">
+        <ConsolidationFlow
+          status={latest?.status}
+          baselineVans={stats?.baselineVans ?? 0}
+          usedVans={stats?.usedVans ?? 0}
+          companies={latest?.companiesServed ?? stats?.suppliersMapped ?? 0}
+          consignments={stats?.consignments ?? 0}
+          detail={latest?.devinStatusDetail?.replace(/_/g, " ")}
         />
-        <Kpi
+        <Mini
           label="Distance cut"
           value={`${stats?.kmSavedPct ?? 0}%`}
-          sub={`${stats?.kmSaved ?? 0} km not driven`}
+          sub={`${stats?.kmSaved ?? 0} km`}
         />
-        <Kpi
+        <Mini
           label="CO2 avoided"
           value={`${stats?.co2SavedKg ?? 0} kg`}
-          valueColor="var(--kf-pass)"
+          color="var(--kf-pass)"
         />
-        <Kpi
+        <Mini
           label="Cost avoided"
           value={`AED ${(stats?.costSavedAed ?? 0).toLocaleString()}`}
           sub={`at AED ${stats?.costRateAed ?? 0}/km`}
         />
       </div>
 
-      <div className="grid min-h-0 gap-2.5 lg:grid-cols-[228px_minmax(0,1fr)_300px]">
+      {/* Routes, map, fleet */}
+      <div className="grid min-h-0 gap-2.5 lg:grid-cols-[236px_minmax(0,1fr)_298px]">
         <Panel
-          title="Routes"
+          title="Shared vehicles"
+          sub={`${latest?.companiesServed ?? 0} companies pooled`}
           right={
             <div className="flex shrink-0 rounded-full bg-[var(--kf-card-sub)] p-0.5">
               <Toggle
@@ -132,13 +150,30 @@ export default function Overview() {
                       </span>
                     </span>
                   </div>
+                  {/* The point of the product: whose goods share this van */}
+                  {(r.companies ?? []).length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-0.5 pl-[22px]">
+                      {(r.companies ?? []).map((c) => (
+                        <span
+                          key={c}
+                          className="rounded px-1 py-0.5 text-[8.5px] font-semibold"
+                          style={{
+                            background: `color-mix(in srgb, ${color} 16%, var(--kf-mix))`,
+                            color,
+                          }}
+                        >
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })
           )}
         </Panel>
 
-        <div className="kf-card min-h-[340px] overflow-hidden p-1.5">
+        <div className="kf-card min-h-[300px] overflow-hidden p-1.5">
           <RouteMap
             shipments={shipments ?? []}
             routes={mapRoutes}
@@ -156,50 +191,52 @@ export default function Overview() {
           onReset={() => act(() => resetFleet({}))}
         />
       </div>
+
+      {/* Reasoning, disruption, live state */}
+      <div className="grid min-h-0 gap-2.5 lg:grid-cols-[minmax(0,1.2fr)_260px_minmax(0,1fr)]">
+        <WhyPanel
+          strategy={latest?.strategy}
+          routeLabel={selectedRoute?.label}
+          routeZone={selectedRoute?.zone}
+          rationale={selectedRoute?.rationale}
+          companies={selectedRoute?.companies}
+        />
+        <DisruptionPanel
+          scenarios={scenarios ?? []}
+          busy={busy}
+          activeDisruption={latest?.disruption}
+          onTrigger={(id) => act(() => disrupt({ scenarioId: id }))}
+        />
+        <LiveState events={events ?? []} />
+      </div>
     </div>
   );
 }
 
-function Kpi({
+function Mini({
   label,
   value,
   sub,
-  accent,
-  valueColor,
+  color,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: string;
-  accent?: boolean;
-  valueColor?: string;
+  color?: string;
 }) {
-  if (accent) {
-    return (
-      <div
-        className="rounded-2xl px-4 py-3 text-white shadow-[var(--kf-shadow)]"
-        style={{ background: "var(--kf-brand-gradient)" }}
-      >
-        <div className="text-[11px] font-semibold opacity-90">{label}</div>
-        <div className="mt-1.5 text-[26px] font-semibold leading-none tabular-nums">
-          {value}
-        </div>
-        {sub && <div className="mt-1 text-[10px] opacity-80">{sub}</div>}
-      </div>
-    );
-  }
   return (
-    <div className="kf-card px-4 py-3">
-      <div className="text-[11px] font-semibold text-[var(--kf-ink-2)]">
+    <div className="kf-card flex flex-col justify-center px-3 py-2.5">
+      <div className="text-[10px] font-semibold text-[var(--kf-ink-2)]">
         {label}
       </div>
       <div
-        className="mt-1.5 text-[26px] font-semibold leading-none tabular-nums"
-        style={{ color: valueColor ?? "var(--kf-ink)" }}
+        className="mt-1 text-[19px] font-semibold leading-none tabular-nums"
+        style={{ color: color ?? "var(--kf-ink)" }}
       >
         {value}
       </div>
       {sub && (
-        <div className="mt-1 text-[10px] text-[var(--kf-ink-3)]">{sub}</div>
+        <div className="mt-0.5 text-[9px] text-[var(--kf-ink-3)]">{sub}</div>
       )}
     </div>
   );

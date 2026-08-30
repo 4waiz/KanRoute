@@ -49,6 +49,9 @@ export type RunDoc = {
   feasible?: boolean;
   proofOutput?: string;
   optimiserCode?: string;
+  strategy?: string;
+  disruption?: string;
+  companiesServed?: number;
 };
 
 export type ShipmentDoc = {
@@ -74,6 +77,8 @@ export type RouteDoc = {
   windowStart?: string;
   windowEnd?: string;
   shipmentRefs: string[];
+  companies?: string[];
+  rationale?: string;
 };
 
 export type SupplierDoc = {
