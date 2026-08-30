@@ -155,6 +155,17 @@ export default defineSchema({
     .index("by_runId", ["runId"])
     .index("by_status", ["status"]),
 
+  /** Single-row operating configuration. Real settings, not decoration. */
+  settings: defineTable({
+    vehicleCapacityKg: v.number(),
+    costRateAed: v.number(),
+    co2PerKm: v.number(),
+    detourFactor: v.number(),
+    avgSpeedKmh: v.number(),
+    maxPages: v.number(),
+    updatedAt: v.number(),
+  }),
+
   events: defineTable({
     runId: v.optional(v.id("runs")),
     supplierId: v.optional(v.id("suppliers")),

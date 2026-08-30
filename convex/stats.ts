@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { CO2_KG_PER_KM, OPERATING_COST_AED_PER_KM } from "./geo";
+
 
 /**
  * Fleet-wide aggregates across every completed consolidation.
@@ -10,6 +10,10 @@ export const summary = query({
   args: {},
   returns: v.any(),
   handler: async (ctx) => {
+    const cfgRow = await ctx.db.query("settings").first();
+    const CO2_KG_PER_KM = cfgRow?.co2PerKm ?? 0.25;
+    const OPERATING_COST_AED_PER_KM = cfgRow?.costRateAed ?? 2.2;
+
     const runs = await ctx.db.query("runs").collect();
     const completed = runs.filter((r) => r.status === "completed");
     const routes = await ctx.db.query("routes").collect();

@@ -7,10 +7,8 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { CO2_KG_PER_KM, DEPOT, roadKm, zoneCoords } from "./geo";
+import { DEPOT, roadKm, zoneCoords } from "./geo";
 import { runStatus } from "./schema";
-
-const VEHICLE_CAPACITY_KG = 1200;
 
 /**
  * Synthetic consignment pattern, per event rules on test data. Each entry is
@@ -48,7 +46,7 @@ const DEMO_LOAD: { zone: string; weightKg: number }[] = [
 export const create = mutation({
   args: { name: v.optional(v.string()) },
   returns: v.id("runs"),
-  handler: async (ctx, { name }) => {
+  handler: async (ctx, { name }): Promise<Id<"runs">> => {
     const suppliers = await ctx.db.query("suppliers").collect();
     // Only suppliers we could both enrich and place on the map can be routed.
     const usable = suppliers.filter(
@@ -60,11 +58,16 @@ export const create = mutation({
       );
     }
 
-    const runId = await ctx.db.insert("runs", {
+    const cfg: {
+      vehicleCapacityKg: number;
+      co2PerKm: number;
+    } = await ctx.runQuery(internal.settings.getInternal, {});
+
+    const runId: Id<"runs"> = await ctx.db.insert("runs", {
       name: name ?? "Dubai consolidation run",
       status: "planning",
       createdAt: Date.now(),
-      vehicleCapacityKg: VEHICLE_CAPACITY_KG,
+      vehicleCapacityKg: cfg.vehicleCapacityKg,
     });
 
     let baselineKm = 0;
@@ -100,7 +103,7 @@ export const create = mutation({
       shipmentCount: DEMO_LOAD.length,
       baselineTrips: DEMO_LOAD.length,
       baselineKm: Math.round(baselineKm * 10) / 10,
-      baselineCo2Kg: Math.round(baselineKm * CO2_KG_PER_KM * 10) / 10,
+      baselineCo2Kg: Math.round(baselineKm * cfg.co2PerKm * 10) / 10,
     });
 
     await ctx.runMutation(internal.events.log, {
