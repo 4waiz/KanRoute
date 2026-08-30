@@ -540,7 +540,6 @@ export function RouteMap({
       // every real fleet map shows; the casing and the focus state are what
       // keep them readable.
       const road = asPath(r.roadPath);
-      const link = asPath(r.linkPath);
 
       const legs =
         road ??
@@ -561,13 +560,6 @@ export function RouteMap({
       // eight full pickup tours drawn at once collapse into one tangle that
       // says nothing. The link says the thing that actually differs — which
       // zone this vehicle serves — and the full sequence is one hover away.
-      const spine =
-        link ??
-        offsetPath(
-          roundCorners([toXY(DEPOT), depotGate(dropXY, lane), dropXY]),
-          lane * laneKm,
-        ).map(toLatLng);
-
       // Out to the stops, then home again. A van's day is one continuous
       // path, so the animation treats it as one and never teleports.
       const journey: [number, number][] = [...legs, ...returnLeg];
@@ -579,7 +571,6 @@ export function RouteMap({
         color: ROUTE_COLORS[i % ROUTE_COLORS.length],
         pickups: ordered,
         drop,
-        spine,
         legs,
         returnLeg,
         journey,
@@ -814,7 +805,7 @@ export function RouteMap({
           {resting.map((b) => (
             <Polyline
               key={`c-${b.route.label}`}
-              positions={b.spine}
+              positions={b.legs}
               interactive={false}
               pathOptions={{
                 color: "#080a0c",
@@ -831,7 +822,7 @@ export function RouteMap({
           {resting.map((b) => (
             <Polyline
               key={`r-${b.route.label}`}
-              positions={b.spine}
+              positions={b.legs}
               pathOptions={{
                 color: b.color,
                 weight: focus ? 1.6 : 2.2,
@@ -1043,7 +1034,9 @@ export function RouteMap({
               ? `Collects ${active.pickups
                   .flatMap((p) => p.companies)
                   .join(" → ")} → drops all in ${active.route.zone}`
-              : "Hover a zone to see which companies share that van"}
+              : drawn.length === 0
+                ? "Tick a route on the left to put it on the map"
+                : "Hover a route to see which companies share that van"}
           </span>
         )}
       </div>

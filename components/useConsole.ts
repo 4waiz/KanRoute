@@ -156,14 +156,30 @@ export function useConsole() {
 
 /** Route visibility and isolation, shared by the map-bearing views. */
 export function useRouteSelection(routes: RouteDoc[] | undefined) {
-  const [hidden, setHidden] = useState<string[]>([]);
+  // Which routes are shown, not which are hidden. The map starts empty and
+  // the operator adds the vans they care about; eight routes drawn at once
+  // is a wall of lines nobody asked for.
+  const [shown, setShown] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const m: Record<string, boolean> = {};
-    for (const r of routes ?? []) m[r.label] = !hidden.includes(r.label);
+    for (const r of routes ?? []) m[r.label] = shown.includes(r.label);
     return m;
-  }, [routes, hidden]);
+  }, [routes, shown]);
+
+  // Derived, so nothing has to be kept in sync when routes arrive or change.
+  const hidden = useMemo(
+    () => (routes ?? []).map((r) => r.label).filter((l) => !shown.includes(l)),
+    [routes, shown],
+  );
+
+  /** Kept for the show-all / hide-all control, which thinks in hidden. */
+  function setHidden(labels: string[]) {
+    setShown(
+      (routes ?? []).map((r) => r.label).filter((l) => !labels.includes(l)),
+    );
+  }
 
   const mapRoutes = useMemo(
     () =>
@@ -180,8 +196,8 @@ export function useRouteSelection(routes: RouteDoc[] | undefined) {
   );
 
   function toggle(label: string) {
-    setHidden((h) =>
-      h.includes(label) ? h.filter((x) => x !== label) : [...h, label],
+    setShown((s) =>
+      s.includes(label) ? s.filter((x) => x !== label) : [...s, label],
     );
   }
 
