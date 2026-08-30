@@ -110,9 +110,17 @@ Six views sharing a fixed console shell. The page itself never scrolls on deskto
 
 ## Map rendering
 
-Routes share a depot, so straight chords collapse into an unreadable starburst. Each route is drawn as a quadratic bezier bowed perpendicular to its chord, with the bow alternating side and widening per route so overlapping paths fan apart. A marching dash shows direction of travel and speeds up on the selected route; unselected routes drop to 12% opacity. Zone labels only pin for the selected route, otherwise they collide.
+Every route leaves the same depot, so drawn naively they collapse into an unreadable starburst. Four things keep the plan legible.
 
-The basemap is OpenStreetMap darkened with a CSS filter on the tile pane, so no API key and no second tile provider is needed, and route colours stay true because markers and lines live in separate panes.
+**Geometry.** Route geometry is computed in a local equirectangular frame measured in kilometres, so a sideways offset is a real distance on the ground rather than a number of degrees that would stretch differently along latitude and longitude. Legs run straight between stops with quadratic fillets at the corners. A spline was tried first and rejected: with a 2 km hop out of the depot followed by a 20 km run, Catmull-Rom gives the first control point an enormous tangent and the route balloons into a loop no vehicle would ever drive. A fillet is bounded by its own corner, so the line always stays on the legs it is meant to follow.
+
+**Lanes.** Routes sharing a corridor are given a deterministic lane from their index, centred on zero, and offset perpendicular by that lane. The offset tapers to zero at both ends, so routes still meet the depot and their drop point exactly and separate only along the corridor between. Lane width is a fraction of the plan's own extent, not a fixed distance, so separation looks the same whether a plan covers one district or the whole emirate. Leaving the depot, each route is routed through a gate point rotated a few degrees per lane, so departures fan out instead of stacking on the same pixels.
+
+**Layering.** Explicit leaflet panes: basemap 200, place names 350, route casing 405, route body 410, focused route 440, markers 600. Every route carries a dark casing under its colour, which is what stops crossings reading as one tangled mesh, and the focused route sits in its own pane so it is above every other line regardless of route order. Markers are always above every line.
+
+**Hierarchy.** With nothing selected, routes sit at 2.6 px and stops are plain dots. Hovering or selecting a route promotes it to 4.2 px at full opacity with a marching dash showing direction of travel and numbered stop pins, while every other route drops to 1.9 px at 28%. Return legs and zone labels are drawn only for the focused route, since shown all at once they overlap into noise.
+
+The basemap is Esri's dark canvas, a purpose-built dark basemap served without an API key, with place names on their own layer beneath the routes. It replaced an inverted OpenStreetMap layer, which flattened Dubai into a near-black slab and left the routes looking pasted onto a dark rectangle. Leaflet snaps `fitBounds` down to a whole zoom level by default, which left the plan filling barely half the panel, so the map runs with fractional zoom.
 
 Coordinates are district-level, so distances are directionally right rather than routing-grade. Routes are not snapped to roads: doing so would mean ~32 calls per plan to a public routing demo server with no SLA, and a rate limit mid-demo is a worse failure than a slightly abstract line.
 

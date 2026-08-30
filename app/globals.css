@@ -108,21 +108,56 @@ body {
   transform: translateY(-3px);
 }
 
-/* Dark basemap without a second tile provider or an API key. Markers and
-   polylines live in overlay panes, so they keep their true colours. */
-.leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.92)
-    saturate(0.7);
-}
-
+/* Esri's dark canvas is already a dark basemap, so the tile pane carries no
+   filter. Inverting a light basemap is what previously flattened Dubai into
+   a dark rectangle and left the routes looking pasted on top of it. */
 .leaflet-container {
-  background: #0b0e10;
+  background: #2a2d2f;
+  font: inherit;
 }
 
+/* The map is a product surface, not a widget dropped onto the page. */
+.kr-map {
+  background: #2a2d2f;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+/* A gentle lift, not an inversion. Esri's canvas is tuned for a white app
+   shell; against this one the street network needs a little more presence
+   before it reads as a map rather than a flat panel. */
+.leaflet-tile-pane {
+  filter: brightness(1.14) contrast(1.08) saturate(0.85);
+}
+
+/* Place names give context. They sit under the routes, so they can be close
+   to full strength without competing with the plan. */
+.leaflet-kr-labels-pane {
+  opacity: 0.88;
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: var(--kf-shadow-sm) !important;
+}
 .leaflet-control-zoom a {
-  background: var(--kf-card) !important;
+  background: rgba(14, 17, 19, 0.88) !important;
+  color: var(--kf-ink-2) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  width: 26px !important;
+  height: 26px !important;
+  line-height: 24px !important;
+  font-size: 15px !important;
+  backdrop-filter: blur(6px);
+}
+.leaflet-control-zoom a:first-child {
+  border-radius: 9px 9px 0 0 !important;
+}
+.leaflet-control-zoom a:last-child {
+  border-radius: 0 0 9px 9px !important;
+}
+.leaflet-control-zoom a:hover {
+  background: rgba(31, 35, 39, 0.95) !important;
   color: var(--kf-ink) !important;
-  border-color: var(--kf-border) !important;
 }
 
 .leaflet-control-attribution {
@@ -191,10 +226,7 @@ body {
   to { stroke-dashoffset: -240; }
 }
 .kr-flow {
-  animation: kr-flow 6s linear infinite;
-}
-.kr-flow-fast {
-  animation: kr-flow 2.6s linear infinite;
+  animation: kr-flow 5s linear infinite;
 }
 
 /* Zone chips: quieter than a default leaflet tooltip, and never boxed in. */
@@ -211,7 +243,7 @@ body {
 .leaflet-tooltip.kr-zone::before { display: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
-  .kr-flow, .kr-flow-fast { animation: none; }
+  .kr-flow { animation: none; }
 }
 
 /* One-shot flash when Convex pushes a new event. Keyed on the event id, so
@@ -224,4 +256,130 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .kr-ping { animation: none; }
+}
+
+/* ------------------------------------------------------------ map markers */
+
+/* Stops on the route in focus: numbered, ringed, legible over any tile. */
+.kr-pin {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--c);
+  color: #07090a;
+  font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.92), 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* Every other stop: present and countable, but quiet. */
+.kr-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 0 1.5px rgba(6, 8, 10, 0.9);
+}
+
+/* Drops are destinations, so they stay square against round pickups. */
+.kr-drop {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--c);
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.92), 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.kr-drop-on {
+  box-shadow:
+    0 0 0 2px rgba(6, 8, 10, 0.92),
+    0 0 0 5px color-mix(in srgb, var(--c) 26%, transparent),
+    0 2px 10px rgba(0, 0, 0, 0.55);
+}
+
+/* The depot anchors the network, so it reads as a place rather than a stop. */
+.kr-depot {
+  position: relative;
+}
+.kr-depot-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f2f4f5;
+  box-shadow: 0 0 0 3px rgba(6, 8, 10, 0.9), 0 0 0 7px rgba(242, 244, 245, 0.16);
+}
+.kr-depot-tag {
+  position: absolute;
+  left: 50%;
+  top: 21px;
+  transform: translateX(-50%);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f2f4f5;
+  color: #0b0e10;
+  font: 700 8.5px/1.4 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+/* Map furniture: enough to read the map, not enough to crowd it. */
+.kr-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(11, 14, 16, 0.78);
+  border: 1px solid var(--kf-border);
+  backdrop-filter: blur(8px);
+  font: 600 9.5px/1 ui-sans-serif, system-ui, sans-serif;
+  color: var(--kf-ink-2);
+  pointer-events: none;
+}
+.kr-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.kr-legend i {
+  display: block;
+}
+.kr-key-depot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f2f4f5;
+}
+.kr-key-stop {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kf-accent);
+}
+.kr-key-drop {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--kf-mint);
+  transform: rotate(45deg);
+}
+
+.kr-attrib {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 1000;
+  font: 500 8px/1 ui-sans-serif, system-ui, sans-serif;
+  color: rgba(238, 241, 243, 0.32);
+  pointer-events: none;
 }

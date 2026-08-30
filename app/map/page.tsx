@@ -12,7 +12,7 @@ const RouteMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="grid h-full w-full place-items-center rounded-[18px] bg-[var(--kf-card-sub)]">
+      <div className="grid h-full w-full place-items-center rounded-[16px] bg-[var(--kf-card-sub)]">
         <span className="text-[12px] text-[var(--kf-ink-3)]">Loading map…</span>
       </div>
     ),
