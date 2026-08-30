@@ -8,9 +8,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "KanForge - Claims in. Evidence out.",
+  title: "LoadShare UAE - Fewer vans. Same deliveries.",
   description:
-    "KanForge turns technical product claims into executable evidence. Context.dev extracts claims, Convex orchestrates, Devin proves them.",
+    "LoadShare consolidates Dubai last-mile deliveries. Context.dev reads real supplier receiving hours, Convex holds live state, Devin builds and proves the routing plan.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

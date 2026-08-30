@@ -1,171 +1,138 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-/** Lifecycle of a whole analysis run. */
-export const analysisStatus = v.union(
+/** Enrichment lifecycle for a supplier pulled off the live web. */
+export const supplierStatus = v.union(
   v.literal("pending"),
-  v.literal("discovering"),
-  v.literal("extracting"),
-  v.literal("ready"),
-  v.literal("verifying"),
-  v.literal("completed"),
-  v.literal("error"),
+  v.literal("enriching"),
+  v.literal("enriched"),
+  v.literal("failed"),
 );
 
-/** Lifecycle of a single claim, from discovery through to a verdict. */
-export const claimStatus = v.union(
-  v.literal("discovering"),
-  v.literal("extracted"),
-  v.literal("classifying"),
-  v.literal("ready"),
-  v.literal("queued"),
-  v.literal("devin_inspecting"),
-  v.literal("devin_testing"),
-  v.literal("pass"),
-  v.literal("fail"),
-  v.literal("human_review"),
-  v.literal("error"),
-);
-
-export const claimCategory = v.union(
-  v.literal("api"),
-  v.literal("performance"),
-  v.literal("reliability"),
-  v.literal("security"),
-  v.literal("integration"),
-  v.literal("behavior"),
-  v.literal("developer_experience"),
-  v.literal("compliance"),
-  v.literal("other"),
-);
-
-/** Whether a claim can be proven by executing code at all. */
-export const verifiability = v.union(
-  v.literal("executable"),
-  v.literal("evidence_only"),
-  v.literal("human_review"),
-);
-
-export const verdict = v.union(
-  v.literal("PASS"),
-  v.literal("FAIL"),
-  v.literal("HUMAN_REVIEW"),
-  v.literal("ERROR"),
-);
-
-export const jobStatus = v.union(
-  v.literal("queued"),
-  v.literal("creating"),
-  v.literal("running"),
-  v.literal("nudged"),
+/** Lifecycle of a consolidation run. */
+export const runStatus = v.union(
+  v.literal("pending"),
+  v.literal("enriching"),
+  v.literal("planning"),
+  v.literal("devin_optimising"),
   v.literal("completed"),
   v.literal("failed"),
   v.literal("timeout"),
 );
 
-/** Which system produced an event - drives the Technology Trace. */
+export const shipmentStatus = v.union(
+  v.literal("unassigned"),
+  v.literal("consolidated"),
+  v.literal("excluded"),
+);
+
 export const provider = v.union(
   v.literal("context.dev"),
   v.literal("convex"),
   v.literal("devin"),
-  v.literal("kanforge"),
+  v.literal("loadshare"),
 );
 
 export default defineSchema({
-  analyses: defineTable({
+  /**
+   * A UAE merchant/supplier. Address and receiving hours are extracted from
+   * the company's own public website by Context.dev - those receiving hours
+   * are what make a consolidation legal, so they cannot be invented.
+   */
+  suppliers: defineTable({
     name: v.string(),
-    websiteUrl: v.string(),
-    repositoryUrl: v.string(),
-    status: analysisStatus,
-    isDemo: v.boolean(),
+    website: v.string(),
+    status: supplierStatus,
+    address: v.optional(v.string()),
+    emirate: v.optional(v.string()),
+    receivingFrom: v.optional(v.string()),
+    receivingTo: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
+    lat: v.optional(v.number()),
+    lng: v.optional(v.number()),
     createdAt: v.number(),
-    startedAt: v.optional(v.number()),
-    completedAt: v.optional(v.number()),
-    error: v.optional(v.string()),
-    urlsAnalyzed: v.optional(v.array(v.string())),
-    pagesAnalyzed: v.optional(v.number()),
-    creditsConsumed: v.optional(v.number()),
   }).index("by_createdAt", ["createdAt"]),
 
-  claims: defineTable({
-    analysisId: v.id("analyses"),
-    order: v.number(),
-    rawClaim: v.string(),
-    normalizedClaim: v.string(),
-    sourceUrl: v.string(),
-    sourceExcerpt: v.string(),
-    category: claimCategory,
-    verifiability: verifiability,
-    expectedBehavior: v.string(),
-    verificationStrategy: v.string(),
-    confidence: v.number(),
-    status: claimStatus,
-    verdict: v.optional(verdict),
-    humanReviewReason: v.optional(v.string()),
-    suggestedEvidence: v.optional(v.string()),
+  /** One parcel/pallet moving from a supplier to a Dubai drop zone. */
+  shipments: defineTable({
+    runId: v.optional(v.id("runs")),
+    supplierId: v.optional(v.id("suppliers")),
+    reference: v.string(),
+    supplierName: v.string(),
+    destinationZone: v.string(),
+    destLat: v.number(),
+    destLng: v.number(),
+    originLat: v.number(),
+    originLng: v.number(),
+    weightKg: v.number(),
+    windowStart: v.string(),
+    windowEnd: v.string(),
+    status: shipmentStatus,
+    assignedRouteId: v.optional(v.id("routes")),
     createdAt: v.number(),
-    updatedAt: v.number(),
   })
-    .index("by_analysisId", ["analysisId"])
-    .index("by_analysisId_and_order", ["analysisId", "order"]),
+    .index("by_runId", ["runId"])
+    .index("by_zone", ["destinationZone"]),
 
-  verificationJobs: defineTable({
-    analysisId: v.id("analyses"),
-    claimId: v.id("claims"),
-    status: jobStatus,
+  /** A consolidation attempt over a set of shipments. */
+  runs: defineTable({
+    name: v.string(),
+    status: runStatus,
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+
+    shipmentCount: v.optional(v.number()),
+    vehicleCapacityKg: v.optional(v.number()),
+
+    // Baseline: one van per shipment, the status quo being replaced.
+    baselineTrips: v.optional(v.number()),
+    baselineKm: v.optional(v.number()),
+    baselineCo2Kg: v.optional(v.number()),
+
+    // Result of the consolidation Devin computed and proved.
+    routeCount: v.optional(v.number()),
+    consolidatedKm: v.optional(v.number()),
+    consolidatedCo2Kg: v.optional(v.number()),
+
     devinSessionId: v.optional(v.string()),
     devinSessionUrl: v.optional(v.string()),
     devinStatus: v.optional(v.string()),
     devinStatusDetail: v.optional(v.string()),
-    acusConsumed: v.optional(v.number()),
-    // Guards against the PREP-discovered structured_output stall.
-    nudgeSent: v.boolean(),
-    pollCount: v.number(),
-    startedAt: v.number(),
+    nudgeSent: v.optional(v.boolean()),
+    pollCount: v.optional(v.number()),
     lastPolledAt: v.optional(v.number()),
-    completedAt: v.optional(v.number()),
-    verdict: v.optional(verdict),
-    error: v.optional(v.string()),
-  })
-    .index("by_claimId", ["claimId"])
-    .index("by_analysisId", ["analysisId"])
-    .index("by_devinSessionId", ["devinSessionId"]),
 
-  evidence: defineTable({
-    analysisId: v.id("analyses"),
-    claimId: v.id("claims"),
-    jobId: v.optional(v.id("verificationJobs")),
-    verdict: v.optional(verdict),
-    summary: v.string(),
-    expected: v.optional(v.string()),
-    observed: v.optional(v.string()),
-    commands: v.array(v.string()),
-    filesInspected: v.array(v.string()),
-    testFilesCreated: v.array(v.string()),
-    limitations: v.array(v.string()),
-    items: v.array(
-      v.object({
-        type: v.string(),
-        title: v.string(),
-        details: v.string(),
-      }),
-    ),
-    raw: v.optional(v.string()),
+    feasible: v.optional(v.boolean()),
+    proofOutput: v.optional(v.string()),
+    optimiserCode: v.optional(v.string()),
+    rawResult: v.optional(v.string()),
+  }).index("by_createdAt", ["createdAt"]),
+
+  /** One consolidated vehicle route produced by the optimiser. */
+  routes: defineTable({
+    runId: v.id("runs"),
+    label: v.string(),
+    zone: v.string(),
+    stopCount: v.number(),
+    loadKg: v.number(),
+    distanceKm: v.number(),
+    windowStart: v.optional(v.string()),
+    windowEnd: v.optional(v.string()),
+    shipmentRefs: v.array(v.string()),
     createdAt: v.number(),
-  })
-    .index("by_claimId", ["claimId"])
-    .index("by_analysisId", ["analysisId"]),
+  }).index("by_runId", ["runId"]),
 
   events: defineTable({
-    analysisId: v.optional(v.id("analyses")),
-    claimId: v.optional(v.id("claims")),
-    jobId: v.optional(v.id("verificationJobs")),
+    runId: v.optional(v.id("runs")),
+    supplierId: v.optional(v.id("suppliers")),
     provider: provider,
     type: v.string(),
     message: v.string(),
     metadata: v.optional(v.string()),
     timestamp: v.number(),
   })
-    .index("by_analysisId_and_timestamp", ["analysisId", "timestamp"])
+    .index("by_runId_and_timestamp", ["runId", "timestamp"])
     .index("by_timestamp", ["timestamp"]),
 });

@@ -2,12 +2,11 @@ import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 import { provider } from "./schema";
 
-/** Append an event to the Technology Trace. Every provider action logs here. */
+/** Append to the live activity trace. Every provider call writes one. */
 export const log = internalMutation({
   args: {
-    analysisId: v.optional(v.id("analyses")),
-    claimId: v.optional(v.id("claims")),
-    jobId: v.optional(v.id("verificationJobs")),
+    runId: v.optional(v.id("runs")),
+    supplierId: v.optional(v.id("suppliers")),
     provider: provider,
     type: v.string(),
     message: v.string(),
@@ -18,17 +17,20 @@ export const log = internalMutation({
     ctx.db.insert("events", { ...args, timestamp: Date.now() }),
 });
 
-export const listByAnalysis = query({
-  args: { analysisId: v.id("analyses"), limit: v.optional(v.number()) },
+export const byRun = query({
+  args: { runId: v.id("runs"), limit: v.optional(v.number()) },
   returns: v.array(v.any()),
-  handler: async (ctx, { analysisId, limit }) => {
-    const rows = await ctx.db
+  handler: async (ctx, { runId, limit }) =>
+    ctx.db
       .query("events")
-      .withIndex("by_analysisId_and_timestamp", (q) =>
-        q.eq("analysisId", analysisId),
-      )
+      .withIndex("by_runId_and_timestamp", (q) => q.eq("runId", runId))
       .order("desc")
-      .take(limit ?? 60);
-    return rows;
-  },
+      .take(limit ?? 60),
+});
+
+export const recent = query({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(v.any()),
+  handler: async (ctx, { limit }) =>
+    ctx.db.query("events").withIndex("by_timestamp").order("desc").take(limit ?? 40),
 });

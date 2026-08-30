@@ -8,13 +8,12 @@
  * @module
  */
 
-import type * as analyses from "../analyses.js";
-import type * as claims from "../claims.js";
-import type * as contextPipeline from "../contextPipeline.js";
-import type * as devin from "../devin.js";
 import type * as events from "../events.js";
-import type * as evidence from "../evidence.js";
-import type * as jobs from "../jobs.js";
+import type * as geo from "../geo.js";
+import type * as optimiser from "../optimiser.js";
+import type * as reenrich from "../reenrich.js";
+import type * as runs from "../runs.js";
+import type * as suppliers from "../suppliers.js";
 
 import type {
   ApiFromModules,
@@ -23,13 +22,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  analyses: typeof analyses;
-  claims: typeof claims;
-  contextPipeline: typeof contextPipeline;
-  devin: typeof devin;
   events: typeof events;
-  evidence: typeof evidence;
-  jobs: typeof jobs;
+  geo: typeof geo;
+  optimiser: typeof optimiser;
+  reenrich: typeof reenrich;
+  runs: typeof runs;
+  suppliers: typeof suppliers;
 }>;
 
 /**
