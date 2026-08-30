@@ -27,11 +27,21 @@
   /* Terminal is always dark, in either theme. */
   --kf-terminal: #08090a;
 
-  --kf-accent: #ff7a33;
-  --kf-pass: #3ddc84;
-  --kf-fail: #ff5a4f;
-  --kf-review: #ffb340;
-  --kf-running: #4d9dff;
+  /* Brand palette sampled from the logo: #3048cc at the base of the mark,
+     #60f0a8 at the arrow tips. Blue carries brand and action, mint carries
+     success and savings, so green never means two things at once. */
+  --kf-accent: #4468e8;
+  --kf-accent-deep: #3048cc;
+  --kf-mint: #60f0a8;
+
+  --kf-pass: #60f0a8;
+  --kf-fail: #ff5f57;
+  --kf-review: #ffbb3d;
+  /* Teal sits midway along the logo gradient, so "in transit" reads as
+     brand-adjacent without colliding with the accent. */
+  --kf-running: #38d9d0;
+
+  --kf-brand-gradient: linear-gradient(140deg, #3f5fe4 0%, #2f8fd0 55%, #35c9b0 100%);
 
   --kf-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.42);
   --kf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
@@ -41,6 +51,7 @@
   --color-kf-card: var(--kf-card);
   --color-kf-ink: var(--kf-ink);
   --color-kf-accent: var(--kf-accent);
+  --color-kf-mint: var(--kf-mint);
   --color-kf-pass: var(--kf-pass);
   --color-kf-fail: var(--kf-fail);
   --color-kf-review: var(--kf-review);
@@ -167,7 +178,7 @@ body {
   top: 0;
   bottom: 0;
   width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(255, 122, 51, 0.6), transparent);
+  background: linear-gradient(90deg, transparent, rgba(68, 104, 232, 0.7), transparent);
   animation: kf-sweep 1.5s ease-in-out infinite;
 }
 

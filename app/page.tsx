@@ -177,9 +177,7 @@ function Kpi({
     return (
       <div
         className="rounded-2xl px-4 py-3 text-white shadow-[var(--kf-shadow)]"
-        style={{
-          background: "linear-gradient(140deg, #ff9a5c 0%, var(--kf-accent) 100%)",
-        }}
+        style={{ background: "var(--kf-brand-gradient)" }}
       >
         <div className="text-[11px] font-semibold opacity-90">{label}</div>
         <div className="mt-1.5 text-[26px] font-semibold leading-none tabular-nums">
