@@ -394,7 +394,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
       const sig = `${size.x}x${size.y}`;
       if (sig === lastSize) return;
       lastSize = sig;
-      map.fitBounds(L.latLngBounds(points), { padding: [38, 38], maxZoom: 14 });
+      map.fitBounds(L.latLngBounds(points), { padding: [56, 56], maxZoom: 14 });
     };
 
     fit();
@@ -468,17 +468,21 @@ export function RouteMap({
         .map((ref) => byRef.get(ref))
         .filter((x): x is MapShipment => Boolean(x));
 
-      const pickups: (LatLng & { names: string[] })[] = [];
+      const pickups: (LatLng & { names: string[]; companies: string[] })[] = [];
       for (const it of items) {
         const found = pickups.find(
           (p) => p.lat === it.originLat && p.lng === it.originLng,
         );
-        if (found) found.names.push(`${it.supplierName} ${it.reference}`);
-        else
+        if (found) {
+          found.names.push(`${it.supplierName} ${it.reference}`);
+          if (!found.companies.includes(it.supplierName))
+            found.companies.push(it.supplierName);
+        } else
           pickups.push({
             lat: it.originLat,
             lng: it.originLng,
             names: [`${it.supplierName} ${it.reference}`],
+            companies: [it.supplierName],
           });
       }
 
@@ -630,6 +634,9 @@ export function RouteMap({
     const byLabel = new Map(built.map((b) => [b.route.label, b]));
     return vehicles
       .filter((v) => v.status !== "idle" && visible[v.label] !== false)
+      // Reading one route means reading one van. The rest are noise until
+      // you let go of the selection.
+      .filter((v) => !focus || v.label === focus)
       .map((v) => {
         const b = byLabel.get(v.label);
         if (!b) return null;
@@ -637,7 +644,7 @@ export function RouteMap({
         return at ? { vehicle: v, at, color: b.color, zone: b.route.zone } : null;
       })
       .filter((x): x is NonNullable<typeof x> => Boolean(x));
-  }, [vehicles, built, visible, consolidated]);
+  }, [vehicles, built, visible, consolidated, focus]);
   const active = drawn.find((b) => b.route.label === focus);
   const resting = drawn.filter((b) => b.route.label !== focus);
 
@@ -849,6 +856,17 @@ export function RouteMap({
               zIndexOffset={400}
               eventHandlers={hoverProps(active.route.label)}
             >
+              {/* Named, not numbered. A pin marked "2" tells you nothing;
+                  "2 · Mai Dubai" is what ties the companies listed beside
+                  the map to the places the van actually visits. */}
+              <Tooltip
+                className="kr-stop"
+                permanent
+                direction="right"
+                offset={[11, 0]}
+              >
+                {idx + 1} · {p.companies.join(" + ")}
+              </Tooltip>
               <Popup>
                 <strong>
                   {active.route.label} · stop {idx + 1}
@@ -917,8 +935,10 @@ export function RouteMap({
         {consolidated && (
           <span className="kr-hint">
             {active
-              ? `${active.route.zone} · full pickup sequence`
-              : "Hover a zone for its full route"}
+              ? `Collects ${active.pickups
+                  .flatMap((p) => p.companies)
+                  .join(" → ")} → drops all in ${active.route.zone}`
+              : "Hover a zone to see which companies share that van"}
           </span>
         )}
       </div>

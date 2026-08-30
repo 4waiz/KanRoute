@@ -394,6 +394,30 @@ body {
   font-weight: 500;
 }
 
+/* Stop labels on the focused route. Named pins are what connect the
+   companies listed beside the map to the places the van actually visits. */
+.leaflet-tooltip.kr-stop {
+  background: rgba(8, 10, 12, 0.9) !important;
+  color: var(--kf-ink) !important;
+  border: 1px solid var(--kf-border-strong) !important;
+  border-radius: 7px !important;
+  padding: 2px 7px !important;
+  font: 600 10px/1.4 ui-sans-serif, system-ui, sans-serif !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6) !important;
+  white-space: nowrap;
+}
+.leaflet-tooltip.kr-stop::before {
+  display: none !important;
+}
+
+/* The caption grows once a route is picked, so give it room to breathe. */
+.kr-hint {
+  max-width: 70ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* A vehicle running the plan. The badge carries the route colour, the bar
    under it is stop progress, so the map answers "what is happening" on its
    own without anyone reading a panel. */
