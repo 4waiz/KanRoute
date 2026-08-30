@@ -65,6 +65,13 @@ const DEMO_SUPPLIERS: { name: string; website: string }[] = [
   { name: "Mai Dubai", website: "https://www.maidubai.com" },
   { name: "Jumbo Electronics", website: "https://www.jumbo.ae" },
   { name: "Al Maya Group", website: "https://www.almaya.ae" },
+  { name: "Choithrams", website: "https://www.choithrams.com" },
+  { name: "Spinneys", website: "https://www.spinneys.com" },
+  { name: "Danube Home", website: "https://www.danubehome.com" },
+  { name: "Al Ain Farms", website: "https://alainfarms.ae" },
+  { name: "Union Coop", website: "https://www.unioncoop.ae" },
+  { name: "Sharaf DG", website: "https://uae.sharafdg.com" },
+  { name: "Emirates Post", website: "https://emiratespost.ae" },
 ];
 
 export const seedDemoSuppliers = mutation({
@@ -72,10 +79,12 @@ export const seedDemoSuppliers = mutation({
   returns: v.array(v.id("suppliers")),
   handler: async (ctx) => {
     const existing = await ctx.db.query("suppliers").collect();
-    if (existing.length > 0) return existing.map((e) => e._id);
+    const known = new Set(existing.map((e) => e.website));
 
-    const ids = [];
+    // Additive: adding suppliers to the roster should not wipe enriched rows.
+    const ids = existing.map((e) => e._id);
     for (const s of DEMO_SUPPLIERS) {
+      if (known.has(s.website)) continue;
       const id = await ctx.db.insert("suppliers", {
         name: s.name,
         website: s.website,
@@ -170,18 +179,28 @@ export const enrich = internalAction({
         urls_analyzed?: string[];
       };
 
+      const clean = (val: unknown): string | undefined => {
+        if (val === null || val === undefined) return undefined;
+        const t = String(val).trim();
+        if (!t || t.toLowerCase() === "null" || t.toLowerCase() === "n/a") {
+          return undefined;
+        }
+        return t;
+      };
+
       const d = result.data ?? {};
-      const address = d.addressLine ? String(d.addressLine) : undefined;
+      const address = clean(d.addressLine);
       const geo = geocodeAddress(address);
 
       await ctx.runMutation(internal.suppliers.patchSupplier, {
         supplierId,
-        status: address ? "enriched" : "failed",
+        // Only usable if we could place it on the map.
+        status: geo ? "enriched" : "failed",
         address,
-        emirate: d.emirate ? String(d.emirate) : undefined,
-        receivingFrom: d.receivingFrom ? String(d.receivingFrom) : undefined,
-        receivingTo: d.receivingTo ? String(d.receivingTo) : undefined,
-        notes: d.notes ? String(d.notes) : undefined,
+        emirate: clean(d.emirate),
+        receivingFrom: clean(d.receivingFrom),
+        receivingTo: clean(d.receivingTo),
+        notes: clean(d.notes),
         sourceUrl: result.urls_analyzed?.[0] ?? supplier.website,
         lat: geo?.lat,
         lng: geo?.lng,

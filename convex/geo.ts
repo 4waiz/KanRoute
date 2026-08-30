@@ -80,6 +80,12 @@ const AREA_COORDS: { match: string[]; lat: number; lng: number }[] = [
   { match: ["silicon oasis"], lat: 25.118, lng: 55.378 },
   { match: ["jumeirah lake towers", "jlt"], lat: 25.0693, lng: 55.14 },
   { match: ["dubai marina"], lat: 25.0805, lng: 55.1403 },
+  { match: ["al khaleej", "port saeed"], lat: 25.2532, lng: 55.3305 },
+  { match: ["jafza", "jebel ali free zone"], lat: 25.0, lng: 55.05 },
+  { match: ["al barsha"], lat: 25.1107, lng: 55.1962 },
+  { match: ["umm al quwain"], lat: 25.5652, lng: 55.5533 },
+  { match: ["al ain"], lat: 24.2075, lng: 55.7447 },
+  { match: ["mussafah"], lat: 24.3517, lng: 54.5064 },
   { match: ["sharjah"], lat: 25.3463, lng: 55.4209 },
   { match: ["abu dhabi"], lat: 24.4539, lng: 54.3773 },
 ];

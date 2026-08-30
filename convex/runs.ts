@@ -22,15 +22,27 @@ const DEMO_LOAD: { zone: string; weightKg: number }[] = [
   { zone: "Jumeirah Lake Towers", weightKg: 180 },
   { zone: "Jumeirah Lake Towers", weightKg: 240 },
   { zone: "Jumeirah Lake Towers", weightKg: 310 },
+  { zone: "Dubai Marina", weightKg: 205 },
+  { zone: "Dubai Marina", weightKg: 165 },
+  { zone: "Dubai Marina", weightKg: 350 },
   { zone: "Business Bay", weightKg: 260 },
   { zone: "Business Bay", weightKg: 190 },
   { zone: "Business Bay", weightKg: 420 },
   { zone: "DIFC", weightKg: 150 },
   { zone: "DIFC", weightKg: 220 },
+  { zone: "DIFC", weightKg: 275 },
   { zone: "Deira", weightKg: 380 },
   { zone: "Deira", weightKg: 290 },
+  { zone: "Deira", weightKg: 210 },
+  { zone: "Downtown Dubai", weightKg: 330 },
+  { zone: "Downtown Dubai", weightKg: 145 },
+  { zone: "Downtown Dubai", weightKg: 260 },
   { zone: "Dubai Silicon Oasis", weightKg: 340 },
   { zone: "Dubai Silicon Oasis", weightKg: 260 },
+  { zone: "Dubai Silicon Oasis", weightKg: 195 },
+  { zone: "Mirdif", weightKg: 285 },
+  { zone: "Mirdif", weightKg: 175 },
+  { zone: "Mirdif", weightKg: 320 },
 ];
 
 export const create = mutation({
@@ -38,10 +50,13 @@ export const create = mutation({
   returns: v.id("runs"),
   handler: async (ctx, { name }) => {
     const suppliers = await ctx.db.query("suppliers").collect();
-    const usable = suppliers.filter((s) => s.status === "enriched");
+    // Only suppliers we could both enrich and place on the map can be routed.
+    const usable = suppliers.filter(
+      (s) => s.status === "enriched" && s.lat != null && s.lng != null,
+    );
     if (usable.length === 0) {
       throw new Error(
-        "No enriched suppliers yet. Context.dev is still reading supplier sites.",
+        "No mappable suppliers yet. Context.dev is still reading supplier sites.",
       );
     }
 
@@ -56,10 +71,7 @@ export const create = mutation({
     for (let i = 0; i < DEMO_LOAD.length; i++) {
       const load = DEMO_LOAD[i];
       const supplier = usable[i % usable.length];
-      const origin =
-        supplier.lat != null && supplier.lng != null
-          ? { lat: supplier.lat, lng: supplier.lng }
-          : zoneCoords(supplier.emirate === "Dubai" ? "Al Quoz" : "Al Quoz");
+      const origin = { lat: supplier.lat as number, lng: supplier.lng as number };
       const dest = zoneCoords(load.zone);
 
       // Status quo: a dedicated van per consignment.
