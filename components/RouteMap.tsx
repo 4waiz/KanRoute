@@ -117,27 +117,38 @@ function FitBounds({ points }: { points: [number, number][] }) {
   useEffect(() => {
     if (points.length === 0) return;
 
-    // The map lives in a flex/grid cell that settles after mount, so leaflet
-    // measures a stale size and fits to the wrong zoom. Re-measure first, and
-    // keep re-measuring while the panel resizes.
+    // The map sits in a grid cell that settles after mount, so leaflet
+    // measures a stale size and fits to the wrong zoom. Re-measure and refit
+    // until the user takes over, then leave their viewport alone.
+    let userDriving = false;
+    const claim = () => {
+      userDriving = true;
+    };
+    map.on("dragstart", claim);
+    map.on("zoomstart", claim);
+
     const fit = () => {
       map.invalidateSize({ animate: false });
+      if (userDriving) return;
       map.fitBounds(L.latLngBounds(points), { padding: [42, 42], maxZoom: 12 });
     };
 
     fit();
-    const t1 = window.setTimeout(fit, 120);
-    const t2 = window.setTimeout(fit, 420);
+    const timers = [120, 420, 900].map((ms) => window.setTimeout(fit, ms));
 
+    let debounce = 0;
     const ro = new ResizeObserver(() => {
-      map.invalidateSize({ animate: false });
+      window.clearTimeout(debounce);
+      debounce = window.setTimeout(fit, 90);
     });
     ro.observe(map.getContainer());
 
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
+      timers.forEach(window.clearTimeout);
+      window.clearTimeout(debounce);
       ro.disconnect();
+      map.off("dragstart", claim);
+      map.off("zoomstart", claim);
     };
   }, [map, points]);
   return null;
