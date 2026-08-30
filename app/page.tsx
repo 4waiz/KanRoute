@@ -4,34 +4,30 @@ import { useMutation, useQuery } from "convex/react";
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import {
+  Activity,
   Boxes,
-  CalendarDays,
-  ChevronDown,
-  ExternalLink,
   Gauge,
   Globe,
-  HelpCircle,
   Home,
   Layers,
   Leaf,
   Loader2,
   Map as MapIcon,
   Radio,
+  Route as RouteIcon,
   Search,
   Settings,
   Terminal,
   Truck,
   Users,
-  Zap,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { LoadShareMark } from "@/components/Brand";
-import { BucketBars, MetricBar, SegmentGauge, UtilBar } from "@/components/charts";
+import { BucketBars, SegmentGauge } from "@/components/charts";
 import { FleetStatus, type Vehicle } from "@/components/Fleet";
 import { ROUTE_COLORS } from "@/lib/routeColors";
 
-// Leaflet touches window on import, so it must not render on the server.
 const RouteMap = dynamic(
   () => import("@/components/RouteMap").then((m) => m.RouteMap),
   {
@@ -69,7 +65,6 @@ type Summary = {
     createdAt: number;
     routeCount: number;
     shipmentCount: number;
-    baselineKm: number;
     consolidatedKm: number;
     kmSaved: number;
     co2Saved: number;
@@ -129,9 +124,13 @@ type TraceEvent = {
   timestamp: number;
 };
 
-export default function Dashboard() {
+type Tab = "proof" | "activity" | "suppliers";
+
+export default function Console() {
   const seed = useMutation(api.suppliers.seedDemoSuppliers);
   const createRun = useMutation(api.runs.create);
+  const dispatchFleet = useMutation(api.fleet.dispatch);
+  const resetFleet = useMutation(api.fleet.reset);
 
   const stats = useQuery(api.stats.summary, {}) as Summary | undefined;
   const latest = useQuery(api.runs.latest, {}) as RunDoc | null | undefined;
@@ -146,19 +145,16 @@ export default function Dashboard() {
     | undefined;
   const events = useQuery(
     api.events.byRun,
-    runId ? { runId, limit: 30 } : "skip",
+    runId ? { runId, limit: 40 } : "skip",
   ) as TraceEvent[] | undefined;
   const vehicles = useQuery(api.fleet.list, {}) as Vehicle[] | undefined;
-
-  const dispatchFleet = useMutation(api.fleet.dispatch);
-  const resetFleet = useMutation(api.fleet.reset);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [consolidated, setConsolidated] = useState(true);
   const [hidden, setHidden] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [showProof, setShowProof] = useState(false);
+  const [tab, setTab] = useState<Tab>("proof");
 
   const done = latest?.status === "completed";
   const mappable = (suppliers ?? []).filter(
@@ -183,96 +179,109 @@ export default function Dashboard() {
     [routes],
   );
 
-  async function loadSuppliers() {
-    setBusy("seed");
-    setError(null);
-    try {
-      await seed({});
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load suppliers.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function runFleet(fn: () => Promise<unknown>, key: string) {
+  async function act(fn: () => Promise<unknown>, key: string) {
     setBusy(key);
     setError(null);
     try {
       await fn();
+      if (key === "run") {
+        setSelected(null);
+        setHidden([]);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Fleet action failed.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function startRun() {
-    setBusy("run");
-    setError(null);
-    try {
-      await createRun({ name: "Dubai last-mile consolidation" });
-      setSelected(null);
-      setHidden([]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start run.");
+      setError(e instanceof Error ? e.message : "Action failed.");
     } finally {
       setBusy(null);
     }
   }
 
   return (
-    <main className="min-h-screen">
+    <main className="flex min-h-[100dvh] flex-col lg:h-[100dvh] lg:overflow-hidden">
       {/* Top bar */}
-      <div className="sticky top-0 z-[500] flex flex-wrap items-center gap-4 bg-[var(--kf-shell)]/92 px-4 py-3 backdrop-blur sm:px-6">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--kf-accent)]">
-            <LoadShareMark size={18} color="#fff" />
+      <header className="flex shrink-0 flex-wrap items-center gap-3 px-3 py-2.5 sm:px-4">
+        <div className="flex items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--kf-accent)]">
+            <LoadShareMark size={16} color="#fff" />
           </span>
-          <span className="text-[17px] font-semibold tracking-tight text-[var(--kf-ink)]">
+          <span className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">
             LoadShare
+          </span>
+          <span className="ml-1 hidden text-[11px] text-[var(--kf-ink-3)] sm:inline">
+            Dubai last-mile consolidation
           </span>
         </div>
 
-        <div className="order-3 w-full sm:order-none sm:w-auto sm:flex-1">
-          <div className="mx-auto flex max-w-md items-center gap-2 rounded-full bg-[var(--kf-card)] px-4 py-2.5 shadow-[var(--kf-shadow-sm)]">
-            <Search className="h-4 w-4 shrink-0 text-[var(--kf-ink-3)]" />
+        <div className="hidden flex-1 justify-center xl:flex">
+          <div className="flex w-full max-w-sm items-center gap-2 rounded-full bg-[var(--kf-card)] px-3.5 py-2 ring-1 ring-[var(--kf-border)]">
+            <Search className="h-3.5 w-3.5 shrink-0 text-[var(--kf-ink-3)]" />
             <input
-              placeholder="Search consolidations, suppliers, zones..."
-              className="w-full bg-transparent text-[13px] text-[var(--kf-ink)] outline-none placeholder:text-[var(--kf-ink-3)]"
+              placeholder="Search routes, suppliers, zones..."
+              className="w-full bg-transparent text-[12.5px] text-[var(--kf-ink)] outline-none placeholder:text-[var(--kf-ink-3)]"
             />
           </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <span className="kf-chip grid h-9 w-9 place-items-center text-[var(--kf-ink-2)]">
-            <HelpCircle className="h-4 w-4" />
+          <span className="hidden text-[11px] text-[var(--kf-ink-3)] sm:inline">
+            {stats?.suppliersMapped ?? 0}/{stats?.suppliersTotal ?? 0} suppliers ·{" "}
+            <StatusText
+              status={latest?.status}
+              detail={latest?.devinStatusDetail}
+            />
           </span>
-          <span className="kf-chip flex items-center gap-2 px-3 py-1.5">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--kf-accent)] text-[10px] font-bold text-white">
-              LS
-            </span>
-            <span className="hidden text-[12.5px] font-medium text-[var(--kf-ink)] sm:inline">
-              Fleet ops
-            </span>
-          </span>
+          <button
+            onClick={() => act(() => seed({}), "seed")}
+            disabled={busy !== null}
+            className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kf-card)] px-3 py-2 text-[11.5px] font-semibold text-[var(--kf-ink-2)] ring-1 ring-[var(--kf-border)] transition hover:text-[var(--kf-ink)] disabled:opacity-50"
+          >
+            {busy === "seed" ? (
+              <Loader2 className="h-3.5 w-3.5 kf-spin" />
+            ) : (
+              <Globe className="h-3.5 w-3.5" />
+            )}
+            Suppliers
+          </button>
+          <button
+            onClick={() =>
+              act(
+                () => createRun({ name: "Dubai last-mile consolidation" }),
+                "run",
+              )
+            }
+            disabled={busy !== null || mappable.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11.5px] font-semibold text-white transition disabled:opacity-50"
+            style={{ background: "var(--kf-accent)" }}
+          >
+            {busy === "run" ? (
+              <Loader2 className="h-3.5 w-3.5 kf-spin" />
+            ) : (
+              <Truck className="h-3.5 w-3.5" />
+            )}
+            Run consolidation
+          </button>
         </div>
-      </div>
+      </header>
 
-      <div className="flex gap-4 px-3 pb-8 sm:px-5">
-        {/* Icon rail */}
-        <nav className="sticky top-[76px] hidden h-fit shrink-0 flex-col items-center gap-2 rounded-3xl bg-[var(--kf-card)] p-2 shadow-[var(--kf-shadow)] lg:flex">
+      {error && (
+        <p className="shrink-0 px-4 pb-1 text-[12px] text-[var(--kf-fail)]">
+          {error}
+        </p>
+      )}
+
+      <div className="flex min-h-0 flex-1 gap-2.5 px-2.5 pb-2.5 sm:px-3.5 sm:pb-3.5">
+        {/* Rail */}
+        <nav className="hidden shrink-0 flex-col items-center gap-1.5 rounded-2xl bg-[var(--kf-card)] p-1.5 ring-1 ring-[var(--kf-border)] lg:flex">
           <RailIcon active>
             <Home className="h-4 w-4" />
           </RailIcon>
           <RailIcon>
-            <CalendarDays className="h-4 w-4" />
+            <MapIcon className="h-4 w-4" />
+          </RailIcon>
+          <RailIcon>
+            <RouteIcon className="h-4 w-4" />
           </RailIcon>
           <RailIcon>
             <Layers className="h-4 w-4" />
-          </RailIcon>
-          <RailIcon>
-            <MapIcon className="h-4 w-4" />
           </RailIcon>
           <RailIcon>
             <Users className="h-4 w-4" />
@@ -282,149 +291,64 @@ export default function Dashboard() {
           </RailIcon>
         </nav>
 
-        <div className="min-w-0 flex-1">
-          {/* Title row */}
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-[30px] font-semibold leading-none tracking-tight text-[var(--kf-ink)] sm:text-[36px]">
-                Dashboard
-              </h1>
-              <p className="mt-2 text-[12.5px] text-[var(--kf-ink-2)]">
-                {stats?.suppliersMapped ?? 0} of {stats?.suppliersTotal ?? 0}{" "}
-                suppliers mapped from live websites ·{" "}
-                <StatusText
-                  status={latest?.status}
-                  detail={latest?.devinStatusDetail}
-                />
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={loadSuppliers}
-                disabled={busy !== null}
-                className="inline-flex items-center gap-2 rounded-full bg-[var(--kf-card)] px-4 py-2.5 text-[12.5px] font-semibold text-[var(--kf-ink-2)] shadow-[var(--kf-shadow-sm)] transition hover:text-[var(--kf-ink)] disabled:opacity-50"
-              >
-                {busy === "seed" ? (
-                  <Loader2 className="h-3.5 w-3.5 kf-spin" />
-                ) : (
-                  <Globe className="h-3.5 w-3.5" />
-                )}
-                Refresh suppliers
-              </button>
-              <button
-                onClick={startRun}
-                disabled={busy !== null || mappable.length === 0}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[12.5px] font-semibold text-white transition disabled:opacity-50"
-                style={{ background: "var(--kf-accent)" }}
-              >
-                {busy === "run" ? (
-                  <Loader2 className="h-3.5 w-3.5 kf-spin" />
-                ) : (
-                  <Truck className="h-3.5 w-3.5" />
-                )}
-                Run consolidation
-              </button>
-            </div>
+        {/* Console grid: KPI strip, main row, bottom row. Page never scrolls. */}
+        <div className="grid min-h-0 flex-1 gap-2.5 lg:grid-rows-[auto_minmax(0,1fr)_minmax(0,215px)]">
+          {/* KPI strip */}
+          <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+            <Kpi
+              accent
+              label="Consolidations"
+              value={stats?.runsCompleted ?? 0}
+              sub="proven plans"
+            />
+            <Kpi
+              label="Consignments"
+              value={stats?.consignments ?? 0}
+              sub="moved"
+              icon={<Boxes className="h-3.5 w-3.5" />}
+            />
+            <Kpi
+              label="Vans"
+              value={`${stats?.baselineVans ?? 0}→${stats?.usedVans ?? 0}`}
+              sub={`${stats?.vansSaved ?? 0} removed`}
+              icon={<Truck className="h-3.5 w-3.5" />}
+              valueColor="var(--kf-accent)"
+            />
+            <Kpi
+              label="Distance cut"
+              value={`${stats?.kmSavedPct ?? 0}%`}
+              sub={`${stats?.kmSaved ?? 0} km`}
+              icon={<RouteIcon className="h-3.5 w-3.5" />}
+            />
+            <Kpi
+              label="CO2 reduced"
+              value={`${stats?.co2SavedKg ?? 0} kg`}
+              sub="avoided"
+              icon={<Leaf className="h-3.5 w-3.5" />}
+              valueColor="var(--kf-pass)"
+            />
+            <Kpi
+              label="Cost avoided"
+              value={`AED ${(stats?.costSavedAed ?? 0).toLocaleString()}`}
+              sub={`est. AED ${stats?.costRateAed ?? 0}/km`}
+              icon={<Gauge className="h-3.5 w-3.5" />}
+            />
           </div>
 
-          {error && (
-            <p className="mb-3 text-[13px] text-[var(--kf-fail)]">{error}</p>
-          )}
-
-          {/* KPI grid */}
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)_minmax(0,0.95fr)]">
-            <div className="grid grid-cols-2 gap-3">
-              <div
-                className="rounded-[22px] p-5 text-white shadow-[var(--kf-shadow)]"
-                style={{
-                  background:
-                    "linear-gradient(150deg, #ff8a4c 0%, var(--kf-accent) 100%)",
-                }}
-              >
-                <div className="flex items-start justify-between">
-                  <span className="text-[12.5px] font-semibold">
-                    Consolidations run
-                  </span>
-                  <Zap className="h-4 w-4 opacity-80" />
-                </div>
-                <div className="mt-7 text-[38px] font-semibold leading-none tabular-nums">
-                  {stats?.runsCompleted ?? 0}
-                </div>
-              </div>
-
-              <KpiCard
-                label="Consignments moved"
-                value={stats?.consignments ?? 0}
-                icon={<Boxes className="h-4 w-4" />}
-              />
-              <KpiCard
-                label="Cost avoided"
-                value={`AED ${(stats?.costSavedAed ?? 0).toLocaleString()}`}
-                sub={`est. at AED ${stats?.costRateAed ?? 0}/km`}
-                icon={<Gauge className="h-4 w-4" />}
-              />
-              <KpiCard
-                label="CO2 reduced"
-                value={`${stats?.co2SavedKg ?? 0} kg`}
-                sub={`${stats?.kmSaved ?? 0} km not driven`}
-                icon={<Leaf className="h-4 w-4" />}
-                accent="var(--kf-pass)"
-              />
-            </div>
-
-            <div className="kf-card p-5">
-              <div className="flex items-start justify-between">
-                <h2 className="text-[14px] font-semibold tracking-tight text-[var(--kf-ink)]">
-                  Average vehicle utilisation
-                </h2>
-                <Zap className="h-4 w-4 text-[var(--kf-ink-3)]" />
-              </div>
-              <div className="mt-1 flex justify-center">
-                <SegmentGauge pct={stats?.avgUtilisation ?? 0} size={200} />
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2.5">
-                <SubStat
-                  label="Vans removed"
-                  value={`${stats?.vansSaved ?? 0}`}
-                  icon={<Truck className="h-3.5 w-3.5" />}
-                />
-                <SubStat
-                  label="Proven feasible"
-                  value={`${stats?.feasiblePct ?? 0}%`}
-                  icon={<Gauge className="h-3.5 w-3.5" />}
-                />
-              </div>
-            </div>
-
-            <div className="kf-card p-5">
-              <div className="flex items-start justify-between">
-                <h2 className="text-[14px] font-semibold tracking-tight text-[var(--kf-ink)]">
-                  Utilisation distribution
-                </h2>
-                <Layers className="h-4 w-4 text-[var(--kf-ink-3)]" />
-              </div>
-              <p className="mt-0.5 text-[11.5px] text-[var(--kf-ink-3)]">
-                Routes by how full the vehicle is
-              </p>
-              <div className="mt-3">
-                <BucketBars buckets={stats?.utilisationBuckets ?? []} />
-              </div>
-            </div>
-          </div>
-
-          {/* Map + route list */}
-          <div className="mt-3 grid gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
-            <div className="kf-card flex max-h-[560px] flex-col overflow-hidden">
-              <div className="flex items-center justify-between px-4 pb-2.5 pt-4">
+          {/* Main row */}
+          <div className="grid min-h-0 gap-2.5 lg:grid-cols-[236px_minmax(0,1fr)_310px]">
+            {/* Routes */}
+            <div className="kf-card flex min-h-0 flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-3 pb-2 pt-3">
                 <div>
-                  <h2 className="text-[14px] font-semibold tracking-tight text-[var(--kf-ink)]">
-                    Latest routes
+                  <h2 className="text-[12.5px] font-semibold tracking-tight text-[var(--kf-ink)]">
+                    Routes
                   </h2>
-                  <p className="mt-0.5 text-[11.5px] text-[var(--kf-ink-3)]">
+                  <p className="text-[10px] text-[var(--kf-ink-3)]">
                     {selected ? "Isolated" : "Click to isolate"}
                   </p>
                 </div>
-                <div className="flex rounded-full bg-[var(--kf-card-sub)] p-1">
+                <div className="flex rounded-full bg-[var(--kf-card-sub)] p-0.5">
                   <Toggle
                     active={!consolidated}
                     onClick={() => setConsolidated(false)}
@@ -439,13 +363,12 @@ export default function Dashboard() {
                   </Toggle>
                 </div>
               </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+              <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
                 {(routes ?? []).length === 0 ? (
-                  <div className="px-3 py-10 text-center">
-                    <div className="relative mx-auto h-2 w-36 overflow-hidden rounded-full bg-[var(--kf-card-sub)] kf-sweep" />
-                    <p className="mt-4 text-[12px] text-[var(--kf-ink-3)]">
-                      Devin is writing and running the optimiser
+                  <div className="px-2 py-8 text-center">
+                    <div className="relative mx-auto h-1.5 w-28 overflow-hidden rounded-full bg-[var(--kf-card-sub)] kf-sweep" />
+                    <p className="mt-3 text-[11px] text-[var(--kf-ink-3)]">
+                      Devin is optimising
                     </p>
                   </div>
                 ) : (
@@ -457,17 +380,17 @@ export default function Dashboard() {
                       <div
                         key={r._id}
                         onClick={() => setSelected(isSel ? null : r.label)}
-                        className="kf-enter mb-1.5 cursor-pointer rounded-xl px-2.5 py-2.5 transition hover:bg-[var(--kf-card-sub)]"
+                        className="kf-enter mb-1 cursor-pointer rounded-lg px-2 py-1.5 transition hover:bg-[var(--kf-card-sub)]"
                         style={
                           isSel
                             ? {
                                 background: "var(--kf-card-sub)",
-                                boxShadow: `inset 0 0 0 2px ${color}`,
+                                boxShadow: `inset 0 0 0 1.5px ${color}`,
                               }
                             : {}
                         }
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
                             checked={on}
@@ -479,32 +402,25 @@ export default function Dashboard() {
                               )
                             }
                             onClick={(e) => e.stopPropagation()}
-                            className="h-4 w-4 shrink-0 accent-[var(--kf-accent)]"
+                            className="h-3 w-3 shrink-0 accent-[var(--kf-accent)]"
                           />
                           <span
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[10px] font-bold text-white"
-                            style={{ background: color, opacity: on ? 1 : 0.35 }}
-                          >
-                            {r.label.replace(/[^0-9]/g, "") || r.label}
-                          </span>
+                            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                            style={{ background: color, opacity: on ? 1 : 0.3 }}
+                          />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[12.5px] font-semibold text-[var(--kf-ink)]">
+                            <span className="block truncate text-[11.5px] font-semibold text-[var(--kf-ink)]">
                               {r.zone}
                             </span>
-                            <span className="block font-mono text-[10px] text-[var(--kf-ink-3)]">
-                              {r.stopCount} stops · {r.loadKg} kg · {r.distanceKm} km
+                            <span className="block font-mono text-[9.5px] text-[var(--kf-ink-3)]">
+                              {r.stopCount}st · {r.loadKg}kg · {r.distanceKm}km
                             </span>
                           </span>
-                        </div>
-                        <div className="mt-1.5 pl-[26px]">
                           <span
-                            className="rounded px-1.5 py-0.5 font-mono text-[10px]"
-                            style={{
-                              background: `color-mix(in srgb, ${color} 14%, var(--kf-mix))`,
-                              color,
-                            }}
+                            className="shrink-0 font-mono text-[9px]"
+                            style={{ color }}
                           >
-                            {r.windowStart}-{r.windowEnd}
+                            {r.windowStart}
                           </span>
                         </div>
                       </div>
@@ -514,52 +430,74 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="kf-card overflow-hidden p-2">
-              <div className="h-[420px] w-full sm:h-[560px]">
-                <RouteMap
-                  shipments={shipments ?? []}
-                  routes={mapRoutes}
-                  consolidated={consolidated && done}
-                  visible={visible}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-              </div>
+            {/* Map */}
+            <div className="kf-card min-h-[320px] overflow-hidden p-1.5">
+              <RouteMap
+                shipments={shipments ?? []}
+                routes={mapRoutes}
+                consolidated={consolidated && done}
+                visible={visible}
+                selected={selected}
+                onSelect={setSelected}
+              />
             </div>
-          </div>
 
-          {/* Fleet */}
-          <div className="mt-3">
+            {/* Fleet */}
             <FleetStatus
               vehicles={vehicles ?? []}
               busy={busy !== null}
-              onDispatch={() => runFleet(() => dispatchFleet({}), "dispatch")}
-              onReset={() => runFleet(() => resetFleet({}), "reset")}
+              onDispatch={() => act(() => dispatchFleet({}), "dispatch")}
+              onReset={() => act(() => resetFleet({}), "reset")}
             />
           </div>
 
-          {/* Table + efficiency */}
-          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="kf-card overflow-hidden">
-              <div className="flex items-center justify-between px-5 pb-3 pt-4">
-                <h2 className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">
+          {/* Bottom row */}
+          <div className="grid min-h-0 gap-2.5 lg:grid-cols-[300px_minmax(0,1fr)_330px]">
+            {/* Utilisation */}
+            <div className="kf-card flex min-h-0 overflow-hidden px-3 py-2.5">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <h2 className="text-[12px] font-semibold tracking-tight text-[var(--kf-ink)]">
+                  Utilisation
+                </h2>
+                <div className="flex min-h-0 flex-1 items-center gap-1">
+                  <div className="shrink-0">
+                    <SegmentGauge
+                      pct={stats?.avgUtilisation ?? 0}
+                      size={124}
+                      segments={10}
+                    />
+                  </div>
+                  <div className="min-h-0 min-w-0 flex-1">
+                    <BucketBars
+                      buckets={stats?.utilisationBuckets ?? []}
+                      height={104}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent runs */}
+            <div className="kf-card flex min-h-0 flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-3 pb-1.5 pt-2.5">
+                <h2 className="text-[12px] font-semibold tracking-tight text-[var(--kf-ink)]">
                   Recent consolidations
                 </h2>
-                <span className="text-[11.5px] text-[var(--kf-ink-3)]">
+                <span className="text-[10px] text-[var(--kf-ink-3)]">
                   {stats?.recent.length ?? 0} runs
                 </span>
               </div>
-              <div className="overflow-x-auto px-3 pb-4">
-                <table className="w-full min-w-[700px] border-collapse">
-                  <thead>
-                    <tr className="text-left text-[10.5px] uppercase tracking-[0.08em] text-[var(--kf-ink-3)]">
+              <div className="min-h-0 flex-1 overflow-auto px-2 pb-2">
+                <table className="w-full min-w-[560px] border-collapse">
+                  <thead className="sticky top-0 bg-[var(--kf-card)]">
+                    <tr className="text-left text-[9.5px] uppercase tracking-[0.06em] text-[var(--kf-ink-3)]">
                       <Th>Run</Th>
                       <Th>Vans</Th>
                       <Th>Loads</Th>
                       <Th>Distance</Th>
                       <Th>Saved</Th>
                       <Th>CO2</Th>
-                      <Th>Utilisation</Th>
+                      <Th>Util</Th>
                       <Th>When</Th>
                     </tr>
                   </thead>
@@ -567,46 +505,31 @@ export default function Dashboard() {
                     {(stats?.recent ?? []).map((r) => (
                       <tr
                         key={r.id}
-                        className="border-t border-[var(--kf-border)] text-[12.5px] text-[var(--kf-ink)]"
+                        className="border-t border-[var(--kf-border)] text-[11.5px] text-[var(--kf-ink)]"
                       >
                         <Td>
-                          <span className="flex items-center gap-2 font-medium">
+                          <span className="flex items-center gap-1.5">
                             {r.feasible && (
                               <span
                                 className="h-1.5 w-1.5 shrink-0 rounded-full"
                                 style={{ background: "var(--kf-pass)" }}
                               />
                             )}
-                            {r.name}
+                            <span className="truncate">{r.name}</span>
                           </span>
                         </Td>
+                        <Td>{r.routeCount}</Td>
+                        <Td>{r.shipmentCount}</Td>
+                        <Td>{r.consolidatedKm} km</Td>
                         <Td>
-                          <span className="tabular-nums">{r.routeCount}</span>
-                        </Td>
-                        <Td>
-                          <span className="tabular-nums">{r.shipmentCount}</span>
-                        </Td>
-                        <Td>
-                          <span className="tabular-nums">
-                            {r.consolidatedKm} km
-                          </span>
-                        </Td>
-                        <Td>
-                          <span
-                            className="font-semibold tabular-nums"
-                            style={{ color: "var(--kf-pass)" }}
-                          >
+                          <span style={{ color: "var(--kf-pass)" }}>
                             {r.kmSaved} km
                           </span>
                         </Td>
+                        <Td>{r.co2Saved} kg</Td>
+                        <Td>{r.utilisation}%</Td>
                         <Td>
-                          <span className="tabular-nums">{r.co2Saved} kg</span>
-                        </Td>
-                        <Td>
-                          <UtilBar pct={r.utilisation} />
-                        </Td>
-                        <Td>
-                          <span className="text-[11.5px] text-[var(--kf-ink-3)]">
+                          <span className="text-[10.5px] text-[var(--kf-ink-3)]">
                             {new Date(r.createdAt).toLocaleString("en-GB", {
                               day: "2-digit",
                               month: "short",
@@ -620,203 +543,125 @@ export default function Dashboard() {
                   </tbody>
                 </table>
                 {(stats?.recent ?? []).length === 0 && (
-                  <p className="px-2 py-6 text-center text-[12.5px] text-[var(--kf-ink-3)]">
+                  <p className="px-2 py-4 text-center text-[11.5px] text-[var(--kf-ink-3)]">
                     No completed consolidations yet.
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="kf-card p-5">
-              <div className="flex items-start justify-between">
-                <h2 className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">
-                  Efficiency metrics
-                </h2>
-                <Zap className="h-4 w-4 text-[var(--kf-ink-3)]" />
+            {/* Tabbed detail */}
+            <div className="kf-card flex min-h-0 flex-col overflow-hidden">
+              <div className="flex shrink-0 items-center gap-1 px-2 pt-2">
+                <TabBtn active={tab === "proof"} onClick={() => setTab("proof")}>
+                  <Terminal className="h-3 w-3" />
+                  Proof
+                </TabBtn>
+                <TabBtn
+                  active={tab === "activity"}
+                  onClick={() => setTab("activity")}
+                >
+                  <Activity className="h-3 w-3" />
+                  Activity
+                </TabBtn>
+                <TabBtn
+                  active={tab === "suppliers"}
+                  onClick={() => setTab("suppliers")}
+                >
+                  <Globe className="h-3 w-3" />
+                  Suppliers
+                </TabBtn>
+                {tab === "proof" && latest?.feasible !== undefined && (
+                  <span
+                    className="ml-auto mr-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                    style={{
+                      background: `color-mix(in srgb, ${latest.feasible ? "var(--kf-pass)" : "var(--kf-fail)"} 16%, var(--kf-mix))`,
+                      color: latest.feasible
+                        ? "var(--kf-pass)"
+                        : "var(--kf-fail)",
+                    }}
+                  >
+                    {latest.feasible ? "Feasible" : "Infeasible"}
+                  </span>
+                )}
               </div>
-              <div className="mt-2">
-                <MetricBar
-                  label="Average stops per route"
-                  value={`${stats?.stopsPerRoute ?? 0}`}
-                  pct={((stats?.stopsPerRoute ?? 0) / 5) * 100}
-                />
-                <MetricBar
-                  label="Distance reduction"
-                  value={`${stats?.kmSavedPct ?? 0}%`}
-                  pct={stats?.kmSavedPct ?? 0}
-                  color="var(--kf-pass)"
-                />
-                <MetricBar
-                  label="Average vehicle utilisation"
-                  value={`${stats?.avgUtilisation ?? 0}%`}
-                  pct={stats?.avgUtilisation ?? 0}
-                />
-                <MetricBar
-                  label="Plans proven feasible"
-                  value={`${stats?.feasiblePct ?? 0}%`}
-                  pct={stats?.feasiblePct ?? 0}
-                  color="var(--kf-pass)"
-                />
-                <MetricBar
-                  label="Fleet size reduction"
-                  value={`${stats?.baselineVans ?? 0} to ${stats?.usedVans ?? 0}`}
-                  pct={
-                    stats?.baselineVans
-                      ? ((stats.baselineVans - stats.usedVans) /
-                          stats.baselineVans) *
-                        100
-                      : 0
-                  }
-                />
-              </div>
-            </div>
-          </div>
 
-          {/* Proof + suppliers */}
-          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="kf-card overflow-hidden">
-              <button
-                onClick={() => setShowProof((s) => !s)}
-                className="flex w-full items-center justify-between px-5 py-4 text-left"
-              >
-                <div>
-                  <h2 className="text-[14px] font-semibold tracking-tight text-[var(--kf-ink)]">
-                    Feasibility proof
-                  </h2>
-                  <p className="mt-0.5 text-[11.5px] text-[var(--kf-ink-3)]">
-                    Verbatim stdout from the constraint checker Devin executed
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2.5">
-                  {latest?.feasible !== undefined && (
-                    <span
-                      className="rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider"
-                      style={{
-                        background: latest.feasible
-                          ? "color-mix(in srgb, var(--kf-pass) 14%, var(--kf-mix))"
-                          : "color-mix(in srgb, var(--kf-fail) 14%, var(--kf-mix))",
-                        color: latest.feasible
-                          ? "var(--kf-pass)"
-                          : "var(--kf-fail)",
-                      }}
-                    >
-                      {latest.feasible ? "Feasible" : "Infeasible"}
-                    </span>
-                  )}
-                  <ChevronDown
-                    className={`h-4 w-4 text-[var(--kf-ink-3)] transition ${showProof ? "rotate-180" : ""}`}
-                  />
-                </div>
-              </button>
-              {showProof && latest?.proofOutput && (
-                <div className="px-5 pb-5">
-                  <div className="overflow-hidden rounded-2xl bg-[var(--kf-terminal)] ring-1 ring-[var(--kf-border)]">
-                    <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
-                      <Terminal className="h-3.5 w-3.5 text-white/45" />
-                      <span className="font-mono text-[10px] tracking-wider text-white/60">
-                        python checker.py
-                      </span>
-                    </div>
-                    <pre className="max-h-72 overflow-auto px-4 py-3.5 font-mono text-[11px] leading-relaxed text-white/80">
+              <div className="min-h-0 flex-1 overflow-auto p-2">
+                {tab === "proof" &&
+                  (latest?.proofOutput ? (
+                    <pre className="whitespace-pre rounded-lg bg-[var(--kf-terminal)] p-2.5 font-mono text-[9.5px] leading-relaxed text-[var(--kf-ink-2)] ring-1 ring-[var(--kf-border)]">
                       {latest.proofOutput}
                     </pre>
-                  </div>
-                  {latest.devinSessionUrl && (
-                    <a
-                      href={latest.devinSessionUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--kf-running)] hover:underline"
-                    >
-                      Open the Devin session
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
+                  ) : (
+                    <p className="p-2 text-[11.5px] text-[var(--kf-ink-3)]">
+                      No proof yet.
+                    </p>
+                  ))}
 
-            <div className="kf-card flex max-h-[360px] flex-col overflow-hidden">
-              <div className="flex items-center justify-between px-5 pb-2.5 pt-4">
-                <h2 className="text-[14px] font-semibold tracking-tight text-[var(--kf-ink)]">
-                  Supplier data
-                </h2>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kf-card-sub)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#2b8fd6]">
-                  <Globe className="h-3 w-3" />
-                  Context.dev
+                {tab === "activity" && (
+                  <ol>
+                    {(events ?? []).map((e) => (
+                      <li key={e._id} className="flex gap-2 py-1">
+                        <span className="w-[44px] shrink-0 font-mono text-[9px] tabular-nums text-[var(--kf-ink-3)]">
+                          {new Date(e.timestamp).toLocaleTimeString("en-GB", {
+                            hour12: false,
+                          })}
+                        </span>
+                        <ProviderLabel provider={e.provider} />
+                        <span className="min-w-0 flex-1 text-[10.5px] leading-snug text-[var(--kf-ink-2)]">
+                          {e.message}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                {tab === "suppliers" && (
+                  <div className="space-y-1.5">
+                    {(suppliers ?? []).map((s) => {
+                      const usable = s.status === "enriched" && s.lat != null;
+                      return (
+                        <div
+                          key={s._id}
+                          className="rounded-lg bg-[var(--kf-card-sub)] px-2.5 py-2"
+                          style={{ opacity: usable ? 1 : 0.5 }}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-[11.5px] font-semibold text-[var(--kf-ink)]">
+                              {s.name}
+                            </span>
+                            <span
+                              className="shrink-0 font-mono text-[9.5px] font-semibold"
+                              style={{
+                                color: usable
+                                  ? "var(--kf-pass)"
+                                  : "var(--kf-ink-3)",
+                              }}
+                            >
+                              {usable
+                                ? `${s.receivingFrom ?? "--"}-${s.receivingTo ?? "--"}`
+                                : "no address"}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 truncate text-[10px] text-[var(--kf-ink-2)]">
+                            {s.address ?? "Not published on site"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="shrink-0 border-t border-[var(--kf-border)] px-2.5 py-1.5">
+                <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-[var(--kf-ink-3)]">
+                  <Radio className="h-2.5 w-2.5" style={{ color: "var(--kf-pass)" }} />
+                  Live · addresses and hours read from supplier sites, consignments
+                  synthetic
                 </span>
               </div>
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 pb-5">
-                {(suppliers ?? []).map((s) => {
-                  const usable = s.status === "enriched" && s.lat != null;
-                  return (
-                    <div
-                      key={s._id}
-                      className="rounded-xl bg-[var(--kf-card-sub)] px-3 py-2.5"
-                      style={{ opacity: usable ? 1 : 0.5 }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[12.5px] font-semibold text-[var(--kf-ink)]">
-                          {s.name}
-                        </span>
-                        <span
-                          className="shrink-0 font-mono text-[10.5px] font-semibold"
-                          style={{
-                            color: usable ? "var(--kf-pass)" : "var(--kf-ink-3)",
-                          }}
-                        >
-                          {usable
-                            ? `${s.receivingFrom ?? "--"}-${s.receivingTo ?? "--"}`
-                            : "not mappable"}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[11px] leading-snug text-[var(--kf-ink-2)]">
-                        {s.address ?? "No address published on site"}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
             </div>
           </div>
-
-          {/* Activity */}
-          <div className="kf-card mt-3 overflow-hidden">
-            <div className="flex items-center justify-between px-5 pb-2 pt-4">
-              <h2 className="text-[14px] font-semibold tracking-tight text-[var(--kf-ink)]">
-                Activity
-              </h2>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kf-card-sub)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--kf-ink-2)]">
-                <Radio className="h-3 w-3" style={{ color: "var(--kf-pass)" }} />
-                Live
-              </span>
-            </div>
-            <div className="max-h-[190px] overflow-y-auto px-5 pb-4">
-              <ol>
-                {(events ?? []).map((e) => (
-                  <li key={e._id} className="kf-enter flex gap-3 py-1.5">
-                    <span className="w-[52px] shrink-0 font-mono text-[10px] tabular-nums text-[var(--kf-ink-3)]">
-                      {new Date(e.timestamp).toLocaleTimeString("en-GB", {
-                        hour12: false,
-                      })}
-                    </span>
-                    <ProviderLabel provider={e.provider} />
-                    <span className="min-w-0 flex-1 text-[11.5px] leading-snug text-[var(--kf-ink-2)]">
-                      {e.message}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-
-          <p className="mt-4 text-[10.5px] leading-relaxed text-[var(--kf-ink-3)]">
-            Supplier addresses and receiving hours are read live from each
-            company&apos;s public website. Consignment volumes and destinations
-            are synthetic test data. Area coordinates are district level. Cost
-            avoided is an estimate at AED {stats?.costRateAed ?? 0}/km. No
-            affiliation with the named businesses is implied.
-          </p>
         </div>
       </div>
     </main>
@@ -832,7 +677,7 @@ function RailIcon({
 }) {
   return (
     <span
-      className={`grid h-10 w-10 place-items-center rounded-2xl transition ${
+      className={`grid h-9 w-9 place-items-center rounded-xl transition ${
         active
           ? "bg-[var(--kf-solid)] text-[var(--kf-solid-fg)]"
           : "text-[var(--kf-ink-3)] hover:bg-[var(--kf-card-sub)]"
@@ -843,74 +688,64 @@ function RailIcon({
   );
 }
 
-function KpiCard({
+function Kpi({
   label,
   value,
   sub,
   icon,
   accent,
+  valueColor,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: string;
   icon?: React.ReactNode;
-  accent?: string;
+  accent?: boolean;
+  valueColor?: string;
 }) {
-  return (
-    <div className="kf-card flex flex-col justify-between p-5">
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-[12.5px] font-semibold text-[var(--kf-ink-2)]">
-          {label}
-        </span>
-        {icon && (
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--kf-card-sub)] text-[var(--kf-ink-2)]">
-            {icon}
-          </span>
-        )}
-      </div>
-      <div>
-        <div
-          className="mt-6 text-[24px] font-semibold leading-none tracking-tight tabular-nums"
-          style={{ color: accent ?? "var(--kf-ink)" }}
-        >
+  if (accent) {
+    return (
+      <div
+        className="rounded-2xl px-3.5 py-2.5 text-white shadow-[var(--kf-shadow)]"
+        style={{
+          background: "linear-gradient(140deg, #ff9a5c 0%, var(--kf-accent) 100%)",
+        }}
+      >
+        <div className="text-[11px] font-semibold opacity-90">{label}</div>
+        <div className="mt-1.5 text-[24px] font-semibold leading-none tabular-nums">
           {value}
         </div>
-        {sub && (
-          <div className="mt-1.5 text-[10.5px] text-[var(--kf-ink-3)]">{sub}</div>
-        )}
+        {sub && <div className="mt-1 text-[9.5px] opacity-75">{sub}</div>}
       </div>
-    </div>
-  );
-}
-
-function SubStat({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-}) {
+    );
+  }
   return (
-    <div className="rounded-2xl bg-[var(--kf-card-sub)] px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--kf-ink-3)]">
-        {icon}
-        {label}
+    <div className="kf-card px-3.5 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-[var(--kf-ink-2)]">
+          {label}
+        </span>
+        {icon && <span className="text-[var(--kf-ink-3)]">{icon}</span>}
       </div>
-      <div className="mt-1 text-[18px] font-semibold leading-none tabular-nums text-[var(--kf-ink)]">
+      <div
+        className="mt-1.5 text-[22px] font-semibold leading-none tabular-nums"
+        style={{ color: valueColor ?? "var(--kf-ink)" }}
+      >
         {value}
       </div>
+      {sub && (
+        <div className="mt-1 text-[9.5px] text-[var(--kf-ink-3)]">{sub}</div>
+      )}
     </div>
   );
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-2 pb-2 font-semibold">{children}</th>;
+  return <th className="px-1.5 pb-1.5 font-semibold">{children}</th>;
 }
 
 function Td({ children }: { children: React.ReactNode }) {
-  return <td className="px-2 py-3">{children}</td>;
+  return <td className="px-1.5 py-1.5 tabular-nums">{children}</td>;
 }
 
 function Toggle({
@@ -925,10 +760,33 @@ function Toggle({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition ${
+      className={`rounded-full px-2 py-1 text-[9.5px] font-semibold transition ${
         active
-          ? "bg-[var(--kf-card)] text-[var(--kf-ink)] shadow-[var(--kf-shadow-sm)]"
+          ? "bg-[var(--kf-card)] text-[var(--kf-ink)] ring-1 ring-[var(--kf-border)]"
           : "text-[var(--kf-ink-3)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TabBtn({
+  children,
+  active,
+  onClick,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10.5px] font-semibold transition ${
+        active
+          ? "bg-[var(--kf-card-sub)] text-[var(--kf-ink)]"
+          : "text-[var(--kf-ink-3)] hover:text-[var(--kf-ink-2)]"
       }`}
     >
       {children}
@@ -940,21 +798,21 @@ function StatusText({ status, detail }: { status?: string; detail?: string }) {
   if (status === "completed")
     return <span style={{ color: "var(--kf-pass)" }}>plan ready</span>;
   if (status === "failed" || status === "timeout")
-    return <span style={{ color: "var(--kf-fail)" }}>optimisation failed</span>;
-  if (!status) return <span>no run yet</span>;
+    return <span style={{ color: "var(--kf-fail)" }}>failed</span>;
+  if (!status) return <span>no run</span>;
   return (
     <span style={{ color: "var(--kf-running)" }}>
-      Devin optimising{detail ? ` (${detail.replace(/_/g, " ")})` : "…"}
+      optimising{detail ? ` (${detail.replace(/_/g, " ")})` : "…"}
     </span>
   );
 }
 
 function ProviderLabel({ provider }: { provider: string }) {
   const map: Record<string, { label: string; color: string }> = {
-    "context.dev": { label: "CONTEXT.DEV", color: "#2b8fd6" },
-    convex: { label: "CONVEX", color: "#d98324" },
-    devin: { label: "DEVIN", color: "#7c5cd6" },
-    loadshare: { label: "LOADSHARE", color: "var(--kf-accent)" },
+    "context.dev": { label: "CONTEXT", color: "#4d9dff" },
+    convex: { label: "CONVEX", color: "#ffb340" },
+    devin: { label: "DEVIN", color: "#b39dff" },
+    loadshare: { label: "FLEET", color: "var(--kf-accent)" },
   };
   const s = map[provider] ?? {
     label: provider.toUpperCase(),
@@ -962,7 +820,7 @@ function ProviderLabel({ provider }: { provider: string }) {
   };
   return (
     <span
-      className="w-[86px] shrink-0 font-mono text-[9.5px] font-semibold tracking-[0.08em]"
+      className="w-[54px] shrink-0 font-mono text-[8.5px] font-semibold tracking-[0.06em]"
       style={{ color: s.color }}
     >
       {s.label}

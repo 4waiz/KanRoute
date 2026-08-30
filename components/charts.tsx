@@ -70,21 +70,23 @@ export function SegmentGauge({
 /** Utilisation histogram, red through green by bucket. */
 export function BucketBars({
   buckets,
+  height = 190,
 }: {
   buckets: { label: string; count: number }[];
+  height?: number;
 }) {
   const max = Math.max(1, ...buckets.map((b) => b.count));
   const colors = ["#e5484d", "#f07c34", "#f5c344", "#4fb96a", "#177f49"];
 
   return (
-    <div className="flex h-[190px] items-end gap-3 px-1">
+    <div className="flex items-end gap-1.5 px-0.5" style={{ height }}>
       {buckets.map((b, i) => {
         const h = (b.count / max) * 100;
         return (
-          <div key={b.label} className="flex h-full flex-1 flex-col items-center gap-2">
+          <div key={b.label} className="flex h-full flex-1 flex-col items-center gap-1">
             <div className="relative flex min-h-0 w-full flex-1 items-end justify-center">
               {b.count > 0 && (
-                <span className="absolute -top-1 text-[10px] font-semibold tabular-nums text-[var(--kf-ink-2)]">
+                <span className="absolute -top-0.5 text-[9px] font-semibold tabular-nums text-[var(--kf-ink-2)]">
                   {b.count}
                 </span>
               )}
@@ -98,7 +100,7 @@ export function BucketBars({
               />
             </div>
             <span
-              className="text-[9.5px] font-semibold"
+              className="text-[8px] font-semibold"
               style={{ color: colors[i] }}
             >
               {b.label}

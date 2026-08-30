@@ -70,8 +70,8 @@ export function FleetStatus({
   const doneDeliveries = vehicles.reduce((a, v) => a + v.deliveriesDone, 0);
 
   return (
-    <div className="kf-card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 pt-4">
+    <div className="kf-card flex min-h-0 flex-col overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-2.5 pt-3.5">
         <div>
           <h2 className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">
             Fleet status
@@ -103,7 +103,7 @@ export function FleetStatus({
       </div>
 
       {/* Counters */}
-      <div className="mx-5 mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mx-4 mb-2.5 grid grid-cols-4 gap-1.5">
         <Counter label="Vehicles" value={vehicles.length} />
         <Counter label="In transit" value={enRoute} color="var(--kf-accent)" />
         <Counter label="Complete" value={complete} color="var(--kf-pass)" />
@@ -119,7 +119,7 @@ export function FleetStatus({
           against the proven plan.
         </p>
       ) : (
-        <div className="max-h-[420px] overflow-y-auto px-3 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3">
           {vehicles.map((vh, i) => {
             const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
             const st = statusStyle(vh.status);
@@ -185,7 +185,13 @@ export function FleetStatus({
         </div>
       )}
 
-      {open && <VehicleDetail vehicle={open} onClose={() => setOpenId(null)} />}
+      {open && (
+        <div className="fixed inset-0 z-[1200] grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="kf-card max-h-[86vh] w-full max-w-2xl overflow-y-auto">
+            <VehicleDetail vehicle={open} onClose={() => setOpenId(null)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -199,7 +205,7 @@ function VehicleDetail({
 }) {
   const left = Math.max(0, vh.deliveriesTotal - vh.deliveriesDone);
   return (
-    <div className="border-t border-[var(--kf-border)] bg-[var(--kf-card-sub)] px-5 py-4">
+    <div className="px-5 py-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-[14px] font-semibold tracking-tight text-[var(--kf-ink)]">
@@ -313,12 +319,12 @@ function Counter({
   color?: string;
 }) {
   return (
-    <div className="rounded-xl bg-[var(--kf-card-sub)] px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-[0.1em] text-[var(--kf-ink-3)]">
+    <div className="rounded-lg bg-[var(--kf-card-sub)] px-2.5 py-2">
+      <div className="text-[9px] uppercase tracking-[0.08em] text-[var(--kf-ink-3)]">
         {label}
       </div>
       <div
-        className="mt-1 text-[17px] font-semibold leading-none tabular-nums"
+        className="mt-1 text-[15px] font-semibold leading-none tabular-nums"
         style={{ color: color ?? "var(--kf-ink)" }}
       >
         {value}
