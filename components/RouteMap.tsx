@@ -120,12 +120,16 @@ function FitBounds({ points }: { points: [number, number][] }) {
     // The map sits in a grid cell that settles after mount, so leaflet
     // measures a stale size and fits to the wrong zoom. Re-measure and refit
     // until the user takes over, then leave their viewport alone.
+    // Leaflet fires dragstart/zoomstart for programmatic moves too, so the
+    // first fitBounds would flag itself as user input and suppress every
+    // later fit. Listen for genuine pointer and wheel input instead.
     let userDriving = false;
     const claim = () => {
       userDriving = true;
     };
-    map.on("dragstart", claim);
-    map.on("zoomstart", claim);
+    const el = map.getContainer();
+    el.addEventListener("pointerdown", claim, { passive: true });
+    el.addEventListener("wheel", claim, { passive: true });
 
     const fit = () => {
       map.invalidateSize({ animate: false });
@@ -147,8 +151,8 @@ function FitBounds({ points }: { points: [number, number][] }) {
       timers.forEach(window.clearTimeout);
       window.clearTimeout(debounce);
       ro.disconnect();
-      map.off("dragstart", claim);
-      map.off("zoomstart", claim);
+      el.removeEventListener("pointerdown", claim);
+      el.removeEventListener("wheel", claim);
     };
   }, [map, points]);
   return null;
