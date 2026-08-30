@@ -81,8 +81,8 @@ export function BucketBars({
       {buckets.map((b, i) => {
         const h = (b.count / max) * 100;
         return (
-          <div key={b.label} className="flex flex-1 flex-col items-center gap-2">
-            <div className="relative flex h-full w-full items-end justify-center">
+          <div key={b.label} className="flex h-full flex-1 flex-col items-center gap-2">
+            <div className="relative flex min-h-0 w-full flex-1 items-end justify-center">
               {b.count > 0 && (
                 <span className="absolute -top-1 text-[10px] font-semibold tabular-nums text-[var(--kf-ink-2)]">
                   {b.count}

@@ -81,7 +81,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
     if (points.length === 0) return;
-    map.fitBounds(L.latLngBounds(points), { padding: [45, 45] });
+    map.fitBounds(L.latLngBounds(points), { padding: [30, 30], maxZoom: 12 });
   }, [map, points]);
   return null;
 }
@@ -186,7 +186,7 @@ export function RouteMap({
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <FitBounds points={allPoints} />
 
