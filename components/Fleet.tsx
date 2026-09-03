@@ -55,11 +55,14 @@ export function FleetStatus({
   onDispatch,
   onReset,
   busy,
+  dataTour,
 }: {
   vehicles: Vehicle[];
   onDispatch: () => void;
   onReset: () => void;
   busy: boolean;
+  /** Anchors the guided tour's spotlight to this panel. */
+  dataTour?: string;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const open = vehicles.find((v) => v._id === openId) ?? null;
@@ -70,7 +73,9 @@ export function FleetStatus({
   const doneDeliveries = vehicles.reduce((a, v) => a + v.deliveriesDone, 0);
 
   return (
-    <div className="kf-card flex min-h-0 flex-col overflow-hidden">
+    <div
+      data-tour={dataTour}
+      className="kf-card flex min-h-0 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-2.5 pt-3.5">
         <div>
           <h2 className="text-[15px] font-semibold tracking-tight text-[var(--kf-ink)]">

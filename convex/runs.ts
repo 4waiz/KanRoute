@@ -7,10 +7,8 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { CO2_KG_PER_KM, DEPOT, roadKm, zoneCoords } from "./geo";
+import { DEPOT, roadKm, zoneCoords } from "./geo";
 import { runStatus } from "./schema";
-
-const VEHICLE_CAPACITY_KG = 1200;
 
 /**
  * Synthetic consignment pattern, per event rules on test data. Each entry is
@@ -46,9 +44,16 @@ const DEMO_LOAD: { zone: string; weightKg: number }[] = [
 ];
 
 export const create = mutation({
-  args: { name: v.optional(v.string()) },
+  args: {
+    name: v.optional(v.string()),
+    disruption: v.optional(v.string()),
+    replanOfRunId: v.optional(v.id("runs")),
+  },
   returns: v.id("runs"),
-  handler: async (ctx, { name }) => {
+  handler: async (
+    ctx,
+    { name, disruption, replanOfRunId },
+  ): Promise<Id<"runs">> => {
     const suppliers = await ctx.db.query("suppliers").collect();
     // Only suppliers we could both enrich and place on the map can be routed.
     const usable = suppliers.filter(
@@ -60,11 +65,19 @@ export const create = mutation({
       );
     }
 
-    const runId = await ctx.db.insert("runs", {
+    const cfg: {
+      vehicleCapacityKg: number;
+      co2PerKm: number;
+    } = await ctx.runQuery(internal.settings.getInternal, {});
+
+    const runId: Id<"runs"> = await ctx.db.insert("runs", {
       name: name ?? "Dubai consolidation run",
       status: "planning",
       createdAt: Date.now(),
-      vehicleCapacityKg: VEHICLE_CAPACITY_KG,
+      vehicleCapacityKg: cfg.vehicleCapacityKg,
+      disruption,
+      replanOfRunId,
+      companiesServed: new Set(usable.map((u) => u.name)).size,
     });
 
     let baselineKm = 0;
@@ -100,14 +113,16 @@ export const create = mutation({
       shipmentCount: DEMO_LOAD.length,
       baselineTrips: DEMO_LOAD.length,
       baselineKm: Math.round(baselineKm * 10) / 10,
-      baselineCo2Kg: Math.round(baselineKm * CO2_KG_PER_KM * 10) / 10,
+      baselineCo2Kg: Math.round(baselineKm * cfg.co2PerKm * 10) / 10,
     });
 
     await ctx.runMutation(internal.events.log, {
       runId,
       provider: "convex",
       type: "run.created",
-      message: `${DEMO_LOAD.length} consignments staged, baseline ${Math.round(baselineKm)} km on ${DEMO_LOAD.length} separate vans`,
+      message: disruption
+        ? `Replanning ${DEMO_LOAD.length} consignments under: ${disruption.slice(0, 90)}`
+        : `${DEMO_LOAD.length} consignments from ${new Set(usable.map((u) => u.name)).size} companies staged, baseline ${Math.round(baselineKm)} km on ${DEMO_LOAD.length} separate vans`,
     });
 
     await ctx.scheduler.runAfter(0, internal.optimiser.startSession, { runId });
@@ -135,6 +150,7 @@ export const patchRun = internalMutation({
     proofOutput: v.optional(v.string()),
     optimiserCode: v.optional(v.string()),
     rawResult: v.optional(v.string()),
+    strategy: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, { runId, ...patch }) => {
@@ -159,6 +175,8 @@ export const saveRoutes = internalMutation({
         windowStart: v.optional(v.string()),
         windowEnd: v.optional(v.string()),
         shipmentRefs: v.array(v.string()),
+        companies: v.optional(v.array(v.string())),
+        rationale: v.optional(v.string()),
       }),
     ),
   },
@@ -227,6 +245,28 @@ export const latest = query({
       .order("desc")
       .take(1);
     return rows[0] ?? null;
+  },
+});
+
+/**
+ * The newest run that actually produced a plan.
+ *
+ * The console reads its data from here rather than from the newest run of
+ * any kind. A replan that is still optimising - or one that stalls - must
+ * never blank the board: operators keep looking at the last proven plan
+ * until a new one is proven, which is also what makes the disruption demo
+ * safe to run live.
+ */
+export const latestCompleted = query({
+  args: {},
+  returns: v.any(),
+  handler: async (ctx) => {
+    const rows = await ctx.db
+      .query("runs")
+      .withIndex("by_createdAt")
+      .order("desc")
+      .take(25);
+    return rows.find((r) => r.status === "completed") ?? null;
   },
 });
 

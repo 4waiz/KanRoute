@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction } from "./_generated/server";
@@ -27,6 +27,16 @@ const RESULT_SCHEMA = {
           label: { type: "string" },
           zone: { type: "string" },
           shipmentRefs: { type: "array", items: { type: "string" } },
+          companies: {
+            type: "array",
+            items: { type: "string" },
+            description: "Distinct companies whose goods share this vehicle.",
+          },
+          rationale: {
+            type: "string",
+            description:
+              "One or two sentences on why exactly these consignments share a vehicle: the binding window, the spare capacity, what stopped you adding more.",
+          },
           loadKg: { type: "number" },
           distanceKm: { type: "number" },
           windowStart: { type: "string" },
@@ -46,12 +56,18 @@ const RESULT_SCHEMA = {
       type: "string",
       description: "The optimiser source you wrote and executed.",
     },
+    strategy: {
+      type: "string",
+      description:
+        "Two or three sentences a logistics manager would understand: what you optimised for, which constraint bound the result, and what would unlock further savings.",
+    },
     notes: { type: "string" },
   },
-  required: ["routes", "totalDistanceKm", "feasible", "proofOutput"],
+  required: ["routes", "totalDistanceKm", "feasible", "proofOutput", "strategy"],
 };
 
 function buildPrompt(args: {
+  disruption?: string;
   shipments: {
     reference: string;
     supplierName: string;
@@ -74,16 +90,31 @@ function buildPrompt(args: {
     .join("\n");
 
   return [
-    "You are the routing engine for LoadShare UAE, a last-mile consolidation",
-    "service operating in Dubai.",
+    "You are the routing engine for KanRoute, shared last-mile fleet",
+    "infrastructure operating in Dubai.",
     "",
-    "Today every consignment below is moving on its own van. Your job is to",
-    "consolidate them into as few vehicle routes as possible, then PROVE the",
-    "plan is feasible by executing a constraint checker.",
+    "These consignments belong to DIFFERENT, unrelated companies. Today each",
+    "company books its own van, so several half-empty vehicles serve the same",
+    "districts at overlapping times. The fleet you are planning belongs to no",
+    "single company: goods from competing shippers may and should share a",
+    "vehicle whenever the constraints allow.",
+    "",
+    "Your job is to decide which vehicle carries which packages, from which",
+    "companies, in what sequence, then PROVE the plan is feasible by",
+    "executing a constraint checker.",
     "",
     `Depot: ${DEPOT.name} at (${DEPOT.lat}, ${DEPOT.lng}).`,
     `Vehicle capacity: ${args.capacityKg} kg.`,
     "",
+    ...(args.disruption
+      ? [
+          "OPERATIONAL DISRUPTION - this plan is a replan under a new constraint:",
+          args.disruption,
+          "Honour it strictly. Explain in your strategy how you absorbed it and",
+          "what it cost in distance or vehicles.",
+          "",
+        ]
+      : []),
     "Consignments:",
     rows,
     "",
@@ -95,6 +126,7 @@ function buildPrompt(args: {
     "   route window is the intersection and must be at least 60 minutes.",
     "4. Only consolidate consignments sharing the same drop zone.",
     "5. Every consignment must appear in exactly one route. None may be dropped.",
+    "6. Mixing companies on one vehicle is encouraged wherever rules 2-4 allow.",
     "",
     "Method:",
     "- Write an optimiser in Python or TypeScript in your workspace.",
@@ -103,6 +135,11 @@ function buildPrompt(args: {
     "- Then write and RUN a separate constraint checker that asserts rules 2-5",
     "  for every route and prints a per-route PASS/FAIL line plus totals.",
     "- Capture the checker's real stdout. Do not paraphrase it.",
+    "",
+    "For every route, list the distinct companies sharing that vehicle and",
+    "give a short rationale: which window bound it, how much capacity was left,",
+    "and what prevented adding another consignment. Also give an overall",
+    "strategy statement a logistics manager would understand.",
     "",
     "Do not modify or push to any repository. Work only in your own workspace.",
     "Never invent output: proofOutput must be what the checker actually printed.",
@@ -138,7 +175,7 @@ export const startSession = internalAction({
     });
     await ctx.runMutation(internal.events.log, {
       runId,
-      provider: "loadshare",
+      provider: "kanroute",
       type: "optimise.queued",
       message: `Handing ${shipments.length} consignments to Devin for routing`,
     });
@@ -154,13 +191,14 @@ export const startSession = internalAction({
           prompt: buildPrompt({
             shipments,
             capacityKg: run.vehicleCapacityKg ?? 1200,
+            disruption: run.disruption,
           }),
           structured_output_schema: RESULT_SCHEMA,
           structured_output_required: true,
           max_acu_limit: MAX_ACU_LIMIT,
           resumable: false,
-          tags: ["loadshare-uae"],
-          title: `LoadShare consolidation: ${shipments.length} consignments`,
+          tags: ["kanroute"],
+          title: `KanRoute consolidation: ${shipments.length} consignments`,
         }),
       });
 
@@ -221,7 +259,7 @@ export const pollSession = internalAction({
       });
       await ctx.runMutation(internal.events.log, {
         runId,
-        provider: "loadshare",
+        provider: "kanroute",
         type: "optimise.timeout",
         message: "Optimisation timed out.",
       });
@@ -277,7 +315,7 @@ export const pollSession = internalAction({
       await ctx.runMutation(internal.runs.patchRun, { runId, nudgeSent: true });
       await ctx.runMutation(internal.events.log, {
         runId,
-        provider: "loadshare",
+        provider: "kanroute",
         type: "devin.nudged",
         message: "Devin stalled without structured output, sending one follow-up.",
       });
@@ -338,9 +376,17 @@ async function finish(
     shipmentRefs: Array.isArray(r.shipmentRefs)
       ? r.shipmentRefs.map((x) => String(x))
       : [],
+    companies: Array.isArray(r.companies)
+      ? r.companies.map((x) => String(x))
+      : undefined,
+    rationale: r.rationale ? String(r.rationale) : undefined,
   }));
 
   await ctx.runMutation(internal.runs.saveRoutes, { runId, routes });
+
+  // Resolve real road geometry in the background. The plan is already valid
+  // without it, so this never blocks the run completing.
+  await ctx.scheduler.runAfter(0, api.roads.enrichRun, { runId });
 
   const totalKm = Math.round(Number(output.totalDistanceKm ?? 0) * 10) / 10;
   await ctx.runMutation(internal.runs.patchRun, {
@@ -355,6 +401,7 @@ async function finish(
     optimiserCode: output.optimiserCode
       ? String(output.optimiserCode).slice(0, 20000)
       : undefined,
+    strategy: output.strategy ? String(output.strategy) : undefined,
     rawResult: JSON.stringify(output, null, 2).slice(0, 60000),
   });
 

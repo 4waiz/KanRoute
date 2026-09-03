@@ -1,14 +1,15 @@
 "use client";
 
-import { Fragment, useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CircleMarker,
   MapContainer,
   Marker,
+  Pane,
   Polyline,
   Popup,
   TileLayer,
   Tooltip,
+  ZoomControl,
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
@@ -33,61 +34,412 @@ export type MapRoute = {
   shipmentRefs: string[];
   distanceKm: number;
   loadKg: number;
+  /** Real driving geometry, resolved server-side when the plan was saved.
+   *  roadPath is the full pickup sequence, linkPath the depot-to-zone run.
+   *  Absent only if the routing service could not resolve the route, in
+   *  which case the map falls back to geometry it computes itself. */
+  roadPath?: number[][];
+  linkPath?: number[][];
 };
 
+export type MapVehicle = {
+  _id: string;
+  label: string;
+  plate: string;
+  driver: string;
+  zone: string;
+  status: "idle" | "en_route" | "completed";
+  progress: number;
+  stopsCompleted: number;
+  stopsTotal: number;
+};
 
+type LatLng = { lat: number; lng: number };
+type XY = { x: number; y: number };
 
 const DEPOT = { name: "Al Quoz Consolidation Hub", lat: 25.13, lng: 55.22 };
 
-/** Numbered stop pin, coloured per route, like a routing console. */
-function stopIcon(color: string, label: string, dim: boolean) {
-  return L.divIcon({
-    className: "",
-    html: `<div style="
-      background:${color};
-      opacity:${dim ? 0.28 : 1};
-      color:#fff;
-      width:22px;height:22px;
-      border-radius:6px;
-      display:flex;align-items:center;justify-content:center;
-      font:600 11px/1 ui-sans-serif,system-ui,sans-serif;
-      box-shadow:0 1px 4px rgba(0,0,0,.35);
-      border:1.5px solid #fff;
-    ">${label}</div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+/**
+ * Esri's dark canvas is a purpose-built dark basemap served without an API
+ * key. It replaces an inverted OpenStreetMap layer, which flattened Dubai
+ * into a near-black slab and left every route looking pasted onto a dark
+ * rectangle rather than drawn on a map.
+ */
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
+const BASE_URL = `${ESRI}/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`;
+const LABEL_URL = `${ESRI}/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}`;
+const ATTRIB = "Esri, HERE, Garmin, &copy; OpenStreetMap contributors";
+
+/**
+ * Explicit layer order. Leaflet reserves 200 tiles, 400 overlay, 600 marker
+ * and 650 tooltip, so every custom pane stays below the marker pane and a
+ * route can never bury a stop.
+ */
+const P_LABELS = "kr-labels";
+const P_CASING = "kr-casing";
+const P_ROUTE = "kr-route";
+const P_ACTIVE = "kr-active";
+
+/* ---------------------------------------------------------------- geometry */
+
+/**
+ * Route geometry is computed in a local equirectangular frame measured in
+ * kilometres. A lane offset is then a real distance on the ground instead of
+ * a number of degrees, which would stretch differently along latitude and
+ * longitude and let parallel lanes drift apart across the map.
+ */
+const KM_PER_DEG_LAT = 110.574;
+const KM_PER_DEG_LNG = 111.32 * Math.cos((25.15 * Math.PI) / 180);
+
+const toXY = (p: LatLng): XY => ({
+  x: p.lng * KM_PER_DEG_LNG,
+  y: p.lat * KM_PER_DEG_LAT,
+});
+const toLatLng = (p: XY): [number, number] => [
+  p.y / KM_PER_DEG_LAT,
+  p.x / KM_PER_DEG_LNG,
+];
+
+/** How fast a van crosses its day on screen, as a fraction per second.
+ *  Tuned to keep moving between server ticks rather than lurching. */
+const SPEED_PER_SEC = 0.014;
+
+/** Departure fan angle at the depot. */
+const GATE_SPREAD = (9 * Math.PI) / 180;
+
+/**
+ * Lane separation is a fraction of the plan's own extent rather than a fixed
+ * distance. A 400 m lane reads clearly on a plan covering one district and
+ * disappears on one spanning the emirate; scaling it keeps the separation
+ * looking identical either way.
+ */
+function laneWidthKm(pts: XY[]): number {
+  if (pts.length === 0) return 0.5;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  const diag = Math.hypot(maxX - minX, maxY - minY) || 20;
+  return Math.min(Math.max(diag * 0.015, 0.35), 2.2);
+}
+
+/**
+ * Where along a path a vehicle has got to. Walking the drawn geometry by
+ * cumulative length puts the truck on the road it is actually driving, rather
+ * than on a straight line between its stops.
+ */
+function pointAlong(
+  path: [number, number][],
+  fraction: number,
+): [number, number] | null {
+  if (path.length < 2) return path[0] ?? null;
+  const t = Math.max(0, Math.min(1, fraction));
+  const segs: number[] = [];
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    // Longitude degrees are shorter than latitude ones at this latitude;
+    // the correction keeps the walk proportional to real distance.
+    const d = Math.hypot(
+      path[i][0] - path[i - 1][0],
+      (path[i][1] - path[i - 1][1]) * 0.9,
+    );
+    segs.push(d);
+    total += d;
+  }
+  if (total === 0) return path[0];
+  const target = total * t;
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (acc + segs[i] >= target) {
+      const f = segs[i] === 0 ? 0 : (target - acc) / segs[i];
+      return [
+        path[i][0] + (path[i + 1][0] - path[i][0]) * f,
+        path[i][1] + (path[i + 1][1] - path[i][1]) * f,
+      ];
+    }
+    acc += segs[i];
+  }
+  return path[path.length - 1];
+}
+
+/** Length of a path in the same units pointAlong walks in. */
+function pathLength(path: [number, number][]): number {
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    total += Math.hypot(
+      path[i][0] - path[i - 1][0],
+      (path[i][1] - path[i - 1][1]) * 0.9,
+    );
+  }
+  return total;
+}
+
+/** Stored geometry arrives as plain [lat, lng] pairs; reject anything that
+ *  did not resolve so the caller falls back cleanly. */
+function asPath(raw?: number[][]): [number, number][] | null {
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  return raw.map((p) => [p[0], p[1]] as [number, number]);
+}
+
+const sub = (a: XY, b: XY): XY => ({ x: a.x - b.x, y: a.y - b.y });
+const add = (a: XY, b: XY): XY => ({ x: a.x + b.x, y: a.y + b.y });
+const scale = (a: XY, k: number): XY => ({ x: a.x * k, y: a.y * k });
+const norm = (a: XY) => Math.hypot(a.x, a.y);
+
+/**
+ * Straight legs with filleted corners.
+ *
+ * A spline through unevenly spaced stops overshoots badly: a 2 km hop out of
+ * the depot followed by a 20 km run gives the first control point an enormous
+ * tangent, and the route balloons into a loop no vehicle would ever drive. A
+ * quadratic fillet is bounded by its own corner, so the line always stays on
+ * the legs it is meant to follow while still reading as a curve.
+ */
+function roundCorners(pts: XY[], radiusKm = 2.4, steps = 9): XY[] {
+  if (pts.length < 3) return pts.slice();
+  const out: XY[] = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const c = pts[i];
+    const v1 = sub(pts[i - 1], c);
+    const v2 = sub(pts[i + 1], c);
+    const l1 = norm(v1);
+    const l2 = norm(v2);
+    if (l1 < 1e-6 || l2 < 1e-6) continue;
+    // Never eat more than a bit under half of either adjacent leg, so the
+    // fillet cannot swallow a short hop entirely.
+    const r = Math.min(radiusKm, l1 * 0.42, l2 * 0.42);
+    const a = add(c, scale(v1, r / l1));
+    const b = add(c, scale(v2, r / l2));
+    out.push(a);
+    for (let s = 1; s < steps; s++) {
+      const t = s / steps;
+      const u = 1 - t;
+      out.push({
+        x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
+        y: u * u * a.y + 2 * u * t * c.y + t * t * b.y,
+      });
+    }
+    out.push(b);
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
+/**
+ * Shift a path sideways onto its own lane. The offset tapers to zero at both
+ * ends, so routes still meet the depot and their drop point exactly and only
+ * separate along the corridor in between. Near-identical paths become
+ * readable without any stop being moved off its real location.
+ */
+function offsetPath(pts: XY[], km: number): XY[] {
+  if (km === 0 || pts.length < 2) return pts;
+  const n = pts.length;
+  // Taper by distance travelled rather than by index: fillets pack many
+  // points into corners, so an index-based taper would peak in the wrong
+  // place and pull the widest part of the lane into a bend.
+  const cum = [0];
+  for (let i = 1; i < n; i++) cum.push(cum[i - 1] + norm(sub(pts[i], pts[i - 1])));
+  const total = cum[n - 1] || 1;
+  return pts.map((pt, i) => {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(n - 1, i + 1)];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const k = km * Math.sin(Math.PI * (cum[i] / total));
+    return { x: pt.x + (-dy / len) * k, y: pt.y + (dx / len) * k };
   });
 }
 
-function depotIcon() {
-  return L.divIcon({
-    className: "",
-    html: `<div style="
-      background:#f2f4f5;color:#0b0e10;
-      padding:3px 8px;border-radius:7px;
-      font:700 10px/1.4 ui-sans-serif,system-ui,sans-serif;
-      letter-spacing:.08em;
-      box-shadow:0 2px 10px rgba(0,0,0,.6);
-      border:1.5px solid rgba(0,0,0,.25);
-    ">DEPOT</div>`,
-    iconSize: [56, 20],
-    iconAnchor: [28, 10],
+/**
+ * A departure point a short way out from the depot, rotated per lane. Every
+ * route still starts on the depot pin, but they leave along different
+ * bearings instead of stacking on the same few pixels. The hop is scaled to
+ * the leg that follows it so a short route never departs on a hairpin.
+ */
+function depotGate(target: XY, lane: number): XY {
+  const d = toXY(DEPOT);
+  const dx = target.x - d.x;
+  const dy = target.y - d.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const hop = Math.min(Math.max(dist * 0.22, 1.2), 4.5);
+  const ang = Math.atan2(dy, dx) + lane * GATE_SPREAD;
+  return { x: d.x + Math.cos(ang) * hop, y: d.y + Math.sin(ang) * hop };
+}
+
+/* ------------------------------------------------------------------- icons */
+
+/**
+ * Icons are immutable, so build each distinct one once. Rebuilding them per
+ * render makes leaflet replace every marker element on hover.
+ */
+const iconCache = new Map<string, L.DivIcon>();
+function cached(key: string, make: () => L.DivIcon): L.DivIcon {
+  let ic = iconCache.get(key);
+  if (!ic) {
+    ic = make();
+    iconCache.set(key, ic);
+  }
+  return ic;
+}
+
+type Emphasis = "full" | "quiet" | "dim";
+
+/**
+ * Numbered pin when its route is in focus, plain dot otherwise: stop sequence
+ * is only worth reading on the route you are actually looking at.
+ */
+function stopIcon(color: string, label: string, mode: Emphasis) {
+  return cached(`s|${color}|${label}|${mode}`, () => {
+    if (mode === "full") {
+      return L.divIcon({
+        className: "",
+        html: `<div class="kr-pin" style="--c:${color}">${label}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+    }
+    return L.divIcon({
+      className: "",
+      html: `<div class="kr-dot" style="--c:${color};opacity:${
+        mode === "dim" ? 0.3 : 0.85
+      }"></div>`,
+      iconSize: [9, 9],
+      iconAnchor: [4.5, 4.5],
+    });
   });
 }
 
-/** Keeps the viewport fitted to whatever is currently plotted. */
+function dropIcon(color: string, mode: Emphasis) {
+  return cached(`d|${color}|${mode}`, () =>
+    L.divIcon({
+      className: "",
+      html: `<div class="kr-drop${
+        mode === "full" ? " kr-drop-on" : ""
+      }" style="--c:${color};opacity:${mode === "dim" ? 0.32 : 1}"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    }),
+  );
+}
+
+/**
+ * A vehicle running the plan. Colour ties it to its route, the bar under it
+ * is its stop progress, so a glance at the map answers "what is happening"
+ * without reading a single panel.
+ */
+function truckIcon(color: string, pct: number, done: boolean) {
+  const p = Math.max(0, Math.min(100, Math.round(pct / 5) * 5));
+  return cached(`t|${color}|${p}|${done}`, () =>
+    L.divIcon({
+      className: "",
+      html: `<div class="kr-truck${done ? " kr-truck-done" : ""}" style="--c:${color}">
+        <span class="kr-truck-badge">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none"
+               stroke="currentColor" stroke-width="2.1"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/>
+            <circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>
+          </svg>
+        </span>
+        <span class="kr-truck-bar"><i style="width:${p}%"></i></span>
+      </div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    }),
+  );
+}
+
+/** A supplier the shared fleet collects from, owned by no single route. */
+const hubIcon = () =>
+  cached("hub", () =>
+    L.divIcon({
+      className: "",
+      html: `<div class="kr-hub"></div>`,
+      iconSize: [10, 10],
+      iconAnchor: [5, 5],
+    }),
+  );
+
+const depotIcon = () =>
+  cached("depot", () =>
+    L.divIcon({
+      className: "",
+      html: `<div class="kr-depot"><span class="kr-depot-ring"></span><span class="kr-depot-tag">DEPOT</span></div>`,
+      iconSize: [16, 16],
+      iconAnchor: [8, 8],
+    }),
+  );
+
+/* ----------------------------------------------------------------- viewport */
+
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
     if (points.length === 0) return;
-    map.fitBounds(L.latLngBounds(points), { padding: [30, 30], maxZoom: 12 });
+
+    // The map sits in a grid cell that settles after mount, so leaflet
+    // measures a stale size and fits to the wrong zoom. Re-measure and refit
+    // until the user takes over, then leave their viewport alone.
+    // Leaflet fires dragstart/zoomstart for programmatic moves too, so the
+    // first fitBounds would flag itself as user input and suppress every
+    // later fit. Listen for genuine pointer and wheel input instead.
+    let userDriving = false;
+    const claim = () => {
+      userDriving = true;
+    };
+    const el = map.getContainer();
+    el.addEventListener("pointerdown", claim, { passive: true });
+    el.addEventListener("wheel", claim, { passive: true });
+
+    // Each fitBounds moves the viewport and makes leaflet request a fresh set
+    // of tiles. Refitting an already-settled layout three times therefore
+    // triples the tile traffic and leaves the map blank for longer, so only
+    // refit when the container has genuinely changed size.
+    let lastSize = "";
+    const fit = () => {
+      map.invalidateSize({ animate: false });
+      if (userDriving) return;
+      const size = map.getSize();
+      const sig = `${size.x}x${size.y}`;
+      if (sig === lastSize) return;
+      lastSize = sig;
+      map.fitBounds(L.latLngBounds(points), { padding: [56, 56], maxZoom: 14 });
+    };
+
+    fit();
+    const timers = [120, 420, 900].map((ms) => window.setTimeout(fit, ms));
+
+    let debounce = 0;
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(debounce);
+      debounce = window.setTimeout(fit, 90);
+    });
+    ro.observe(map.getContainer());
+
+    return () => {
+      timers.forEach(window.clearTimeout);
+      window.clearTimeout(debounce);
+      ro.disconnect();
+      el.removeEventListener("pointerdown", claim);
+      el.removeEventListener("wheel", claim);
+    };
   }, [map, points]);
   return null;
 }
 
+/* ---------------------------------------------------------------- component */
+
 export function RouteMap({
   shipments,
   routes,
+  vehicles = [],
   consolidated,
   visible,
   selected,
@@ -95,41 +447,65 @@ export function RouteMap({
 }: {
   shipments: MapShipment[];
   routes: MapRoute[];
+  vehicles?: MapVehicle[];
   consolidated: boolean;
   visible: Record<string, boolean>;
   selected: string | null;
   onSelect: (label: string | null) => void;
 }) {
+  const [hovered, setHovered] = useState<string | null>(null);
+  // Hover previews a selection without committing to one, so both run through
+  // the same highlight path and the map never shows two competing emphases.
+  const focus = hovered ?? selected;
+
   const byRef = useMemo(() => {
     const m = new Map<string, MapShipment>();
     for (const s of shipments) m.set(s.reference, s);
     return m;
   }, [shipments]);
 
-  /** Depot -> unique pickups -> drop -> depot, in nearest-neighbour order. */
+  // How far apart this plan actually spreads, used to size the lanes.
+  const laneKm = useMemo(
+    () =>
+      laneWidthKm([
+        toXY(DEPOT),
+        ...shipments.flatMap((s) => [
+          toXY({ lat: s.originLat, lng: s.originLng }),
+          toXY({ lat: s.destLat, lng: s.destLng }),
+        ]),
+      ]),
+    [shipments],
+  );
+
   const built = useMemo(() => {
+    const n = routes.length;
     return routes.map((r, i) => {
       const items = r.shipmentRefs
         .map((ref) => byRef.get(ref))
         .filter((x): x is MapShipment => Boolean(x));
 
-      const pickups: { lat: number; lng: number; names: string[] }[] = [];
+      const pickups: (LatLng & { names: string[]; companies: string[] })[] = [];
       for (const it of items) {
         const found = pickups.find(
           (p) => p.lat === it.originLat && p.lng === it.originLng,
         );
-        if (found) found.names.push(`${it.supplierName} ${it.reference}`);
-        else
+        if (found) {
+          found.names.push(`${it.supplierName} ${it.reference}`);
+          if (!found.companies.includes(it.supplierName))
+            found.companies.push(it.supplierName);
+        } else
           pickups.push({
             lat: it.originLat,
             lng: it.originLng,
             names: [`${it.supplierName} ${it.reference}`],
+            companies: [it.supplierName],
           });
       }
 
+      // Nearest-neighbour ordering from the depot.
       const ordered: typeof pickups = [];
       const remaining = [...pickups];
-      let cur = { lat: DEPOT.lat, lng: DEPOT.lng };
+      let cur: LatLng = DEPOT;
       while (remaining.length) {
         let best = 0;
         let bestD = Infinity;
@@ -142,163 +518,529 @@ export function RouteMap({
         });
         const next = remaining.splice(best, 1)[0];
         ordered.push(next);
-        cur = { lat: next.lat, lng: next.lng };
+        cur = next;
       }
 
-      const drop = items[0]
+      const drop: LatLng = items[0]
         ? { lat: items[0].destLat, lng: items[0].destLng }
-        : { lat: DEPOT.lat, lng: DEPOT.lng };
+        : DEPOT;
 
-      const path: [number, number][] = [
-        [DEPOT.lat, DEPOT.lng],
-        ...ordered.map((p) => [p.lat, p.lng] as [number, number]),
-        [drop.lat, drop.lng],
-        [DEPOT.lat, DEPOT.lng],
-      ];
+      // A stable lane per route index, centred on zero so the bundle stays
+      // balanced around the corridor it actually follows.
+      const lane = n > 1 ? i - (n - 1) / 2 : 0;
+
+      const stopsXY = ordered.map(toXY);
+      const dropXY = toXY(drop);
+      const outward = stopsXY[0] ?? dropXY;
+
+      // Real road geometry wherever it resolved. It is drawn exactly as the
+      // router returned it — no lane offset — because a line nudged sideways
+      // to look tidy is a line that is no longer on the road. Routes sharing
+      // an arterial genuinely overlap there, which is the truth and is what
+      // every real fleet map shows; the casing and the focus state are what
+      // keep them readable.
+      const road = asPath(r.roadPath);
+
+      const legs =
+        road ??
+        offsetPath(
+          roundCorners([toXY(DEPOT), depotGate(outward, lane), ...stopsXY, dropXY]),
+          lane * laneKm,
+        ).map(toLatLng);
+
+      const returnLeg = road
+        ? [...road].reverse()
+        : offsetPath(
+            roundCorners([dropXY, depotGate(dropXY, -lane), toXY(DEPOT)]),
+            -lane * laneKm * 0.8,
+          ).map(toLatLng);
+
+      // At rest a route is drawn as its depot-to-zone link alone. Every route
+      // collects from the same handful of suppliers spread across the city, so
+      // eight full pickup tours drawn at once collapse into one tangle that
+      // says nothing. The link says the thing that actually differs — which
+      // zone this vehicle serves — and the full sequence is one hover away.
+      // Out to the stops, then home again. A van's day is one continuous
+      // path, so the animation treats it as one and never teleports.
+      const journey: [number, number][] = [...legs, ...returnLeg];
+      const outLen = pathLength(legs);
+      const total = outLen + pathLength(returnLeg);
 
       return {
         route: r,
         color: ROUTE_COLORS[i % ROUTE_COLORS.length],
         pickups: ordered,
         drop,
-        path,
-        items,
+        legs,
+        returnLeg,
+        journey,
+        // Where along the whole day the last drop happens; past this point
+        // the van is running back empty.
+        outFrac: total > 0 ? outLen / total : 1,
       };
     });
-  }, [routes, byRef]);
+  }, [routes, byRef, laneKm]);
 
+  // The suppliers themselves, deduplicated. Drawn per route they stack four
+  // deep on the same coordinates, which was a large part of the clutter: the
+  // shared fleet collects from one set of suppliers, so it is drawn once.
+  const pickupHubs = useMemo(() => {
+    const seen = new Map<string, { lat: number; lng: number; names: Set<string> }>();
+    for (const s of shipments) {
+      const key = `${s.originLat},${s.originLng}`;
+      const hit = seen.get(key);
+      if (hit) hit.names.add(s.supplierName);
+      else
+        seen.set(key, {
+          lat: s.originLat,
+          lng: s.originLng,
+          names: new Set([s.supplierName]),
+        });
+    }
+    return [...seen.values()];
+  }, [shipments]);
+
+  // One dedicated van per consignment: the status quo this product exists to
+  // replace. The tangle is the argument, so it is drawn plainly and faintly.
+  const baseline = useMemo(
+    () =>
+      shipments.map((s, i) => ({
+        ref: s.reference,
+        shipment: s,
+        positions: offsetPath(
+          roundCorners([
+            toXY(DEPOT),
+            toXY({ lat: s.originLat, lng: s.originLng }),
+            toXY({ lat: s.destLat, lng: s.destLng }),
+          ]),
+          ((i % 7) - 3) * 0.45,
+        ).map(toLatLng),
+      })),
+    [shipments],
+  );
+
+  // Bounds come from the geometry actually drawn. Smoothed, lane-offset
+  // routes swing outside the straight-line box between their endpoints, so
+  // fitting to endpoints alone pushes part of every curve off screen.
   const allPoints = useMemo(() => {
     const pts: [number, number][] = [[DEPOT.lat, DEPOT.lng]];
+    if (consolidated) {
+      for (const b of built) {
+        if (visible[b.route.label] === false) continue;
+        pts.push(...b.legs);
+      }
+      // Every layer hidden: fall through to the consignments so the viewport
+      // still lands on Dubai rather than the whole world.
+      if (pts.length > 1) return pts;
+    }
     for (const s of shipments) {
       pts.push([s.originLat, s.originLng]);
       pts.push([s.destLat, s.destLng]);
     }
     return pts;
-  }, [shipments]);
+  }, [shipments, built, consolidated, visible]);
+
+  const drawn = consolidated
+    ? built.filter((b) => visible[b.route.label] !== false)
+    : [];
+
+  // Where each van is headed. Convex pushes a stop count every few seconds;
+  // that is the truth, but on its own it makes a van teleport from stop to
+  // stop. This is the target the animation drives toward.
+  const targets = useMemo(() => {
+    if (!consolidated) return [];
+    const byLabel = new Map(built.map((b) => [b.route.label, b]));
+    return vehicles
+      .filter((v) => v.status !== "idle" && visible[v.label] !== false)
+      // Reading one route means reading one van. The rest are noise until
+      // you let go of the selection.
+      .filter((v) => !focus || v.label === focus)
+      .map((v) => {
+        const b = byLabel.get(v.label);
+        if (!b) return null;
+        // Aim at the NEXT stop, not the last confirmed one. Targeting where
+        // the van already is leaves it parked between server ticks, lurching
+        // forward once every tick; aiming one stop ahead keeps it driving,
+        // arriving about as the tick that confirms it lands.
+        // Finished vans keep going through the last drop and back to the
+        // depot, because that is what happens at the end of a round.
+        const stops = Math.max(1, v.stopsTotal);
+        const perStop = b.outFrac / stops;
+        const reached = (Math.max(0, Math.min(stops, v.stopsCompleted)) / stops) * b.outFrac;
+        const target =
+          v.status === "completed" ? 1 : Math.min(b.outFrac, reached + perStop);
+        return { vehicle: v, route: b, target, reached };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+  }, [vehicles, built, visible, consolidated, focus]);
+
+  // The animated position of every van, keyed by id and carried across
+  // frames. A ref rather than state: it changes sixty times a second and
+  // only the markers care.
+  const drivenRef = useRef(new Map<string, number>());
+  const [frame, setFrame] = useState(0);
+
+  // The loop reads its work from a ref, not from its own closure. Driving it
+  // straight off `targets` meant the interval captured one render's vehicles
+  // and kept animating toward stale positions after the next server tick, so
+  // the vans reached a target once and then sat there for good.
+  const targetsRef = useRef(targets);
+  useEffect(() => {
+    targetsRef.current = targets;
+  }, [targets]);
+
+  useEffect(() => {
+    const driven = drivenRef.current;
+    const STEP_MS = 50;
+    const id = window.setInterval(() => {
+      const list = targetsRef.current;
+      if (list.length === 0) return;
+      let moved = false;
+
+      for (const t of list) {
+        // A van joining mid-round starts at the stop it has actually
+        // reached, then drives on, rather than flying in from the depot.
+        if (!driven.has(t.vehicle._id)) {
+          driven.set(t.vehicle._id, t.reached);
+          moved = true;
+          continue;
+        }
+        const at = driven.get(t.vehicle._id) ?? t.reached;
+        const gap = t.target - at;
+        if (Math.abs(gap) < 0.0005) continue;
+
+        // Constant speed reads like a vehicle; easing reads like a slider
+        // settling. An empty van running home moves quicker than one working
+        // its way between drops, which is both true and better to watch.
+        const speed =
+          at >= t.route.outFrac - 0.001 ? SPEED_PER_SEC * 2.2 : SPEED_PER_SEC;
+        const stepped = Math.min(Math.abs(gap), (speed * STEP_MS) / 1000);
+        driven.set(t.vehicle._id, at + Math.sign(gap) * stepped);
+        moved = true;
+      }
+
+      if (moved) setFrame((f) => (f + 1) % 1_000_000);
+    }, STEP_MS);
+
+    return () => window.clearInterval(id);
+  }, []);
+
+  const trucks = useMemo(() => {
+    void frame; // recomputed each animation frame
+    return targets
+      .map((t) => {
+        const at = drivenRef.current.get(t.vehicle._id) ?? t.target;
+        const pos = pointAlong(t.route.journey, at);
+        if (!pos) return null;
+        return {
+          vehicle: t.vehicle,
+          at: pos,
+          color: t.route.color,
+          zone: t.route.route.zone,
+          // Past the last drop the van is running home empty.
+          returning: at >= t.route.outFrac - 0.001,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+  }, [targets, frame]);
+  const active = drawn.find((b) => b.route.label === focus);
+  const resting = drawn.filter((b) => b.route.label !== focus);
+
+  function hoverProps(label: string) {
+    return {
+      click: () => onSelect(selected === label ? null : label),
+      mouseover: () => setHovered(label),
+      mouseout: () => setHovered(null),
+    };
+  }
 
   return (
-    <MapContainer
-      center={[25.15, 55.25]}
-      zoom={10}
-      scrollWheelZoom
-      style={{ height: "100%", width: "100%", borderRadius: 18 }}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <FitBounds points={allPoints} />
+    <div className="kr-map relative h-full w-full overflow-hidden rounded-[16px]">
+      <MapContainer
+        center={[25.15, 55.25]}
+        zoom={10}
+        scrollWheelZoom
+        zoomControl={false}
+        attributionControl={false}
+        /* Leaflet snaps fitBounds down to a whole zoom level by default, which
+           left the plan filling barely half the panel with dead map around it.
+           Fractional zoom lets the fit actually reach the padding. */
+        zoomSnap={0.25}
+        style={{ height: "100%", width: "100%" }}
+      >
+        {/* A ring of off-screen tiles keeps panning from flashing empty. */}
+        <TileLayer url={BASE_URL} attribution={ATTRIB} keepBuffer={3} />
+        {/* Place names sit above the basemap but below the routes, so they
+            give context without competing with the plan. */}
+        <Pane name={P_LABELS} style={{ zIndex: 350 }}>
+          <TileLayer url={LABEL_URL} keepBuffer={3} />
+        </Pane>
 
-      <Marker position={[DEPOT.lat, DEPOT.lng]} icon={depotIcon()}>
-        <Popup>{DEPOT.name}</Popup>
-      </Marker>
+        <FitBounds points={allPoints} />
 
-      {/* Status quo: every consignment its own out-and-back leg. */}
-      {!consolidated &&
-        shipments.map((s) => (
-          <Polyline
-            key={`b-${s.reference}`}
-            positions={[
-              [DEPOT.lat, DEPOT.lng],
-              [s.originLat, s.originLng],
-              [s.destLat, s.destLng],
-              [DEPOT.lat, DEPOT.lng],
-            ]}
-            pathOptions={{
-              color: "#7b868c",
-              weight: 1.4,
-              opacity: 0.5,
-              dashArray: "4 4",
-            }}
-          />
-        ))}
-
-      {consolidated &&
-        built.map((b) => {
-          if (visible[b.route.label] === false) return null;
-          const dim = selected !== null && selected !== b.route.label;
-          return (
+        {/* Status quo: uniform, faint, unlabelled. The volume is the point. */}
+        {!consolidated &&
+          baseline.map((b) => (
             <Polyline
-              key={`r-${b.route.label}`}
-              positions={b.path}
+              key={`b-${b.ref}`}
+              positions={b.positions}
               pathOptions={{
-                color: b.color,
-                weight: selected === b.route.label ? 6 : 4,
-                opacity: dim ? 0.2 : 0.9,
+                color: "#8d99a0",
+                weight: 1.1,
+                opacity: 0.4,
+                lineCap: "round",
                 lineJoin: "round",
               }}
-              eventHandlers={{
-                click: () =>
-                  onSelect(selected === b.route.label ? null : b.route.label),
-              }}
             >
-              <Tooltip sticky>
-                {b.route.label} · {b.route.zone} · {b.route.distanceKm} km
+              <Tooltip className="kr-zone" sticky>
+                {b.shipment.supplierName} · {b.shipment.reference} ·{" "}
+                {b.shipment.weightKg} kg
               </Tooltip>
             </Polyline>
-          );
-        })}
+          ))}
 
-      {consolidated &&
-        built.map((b) => {
-          if (visible[b.route.label] === false) return null;
-          const dim = selected !== null && selected !== b.route.label;
-          return (
-            <Fragment key={`m-${b.route.label}`}>
-              {b.pickups.map((p, idx) => (
-                <Marker
-                  key={`${b.route.label}-p-${idx}`}
-                  position={[p.lat, p.lng]}
-                  icon={stopIcon(b.color, String(idx + 1), dim)}
-                  eventHandlers={{ click: () => onSelect(b.route.label) }}
-                >
-                  <Popup>
-                    <strong>
-                      {b.route.label} stop {idx + 1}
-                    </strong>
-                    <br />
-                    {p.names.join(", ")}
-                  </Popup>
-                </Marker>
-              ))}
-              <CircleMarker
-                center={[b.drop.lat, b.drop.lng]}
-                radius={9}
+        {/* Casing under every resting link. A dark outline is what stops
+            crossings reading as one tangled mesh. */}
+        <Pane name={P_CASING} style={{ zIndex: 405 }}>
+          {resting.map((b) => (
+            <Polyline
+              key={`c-${b.route.label}`}
+              positions={b.legs}
+              interactive={false}
+              pathOptions={{
+                color: "#080a0c",
+                weight: focus ? 3.4 : 4.4,
+                opacity: focus ? 0.3 : 0.55,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+          ))}
+        </Pane>
+
+        <Pane name={P_ROUTE} style={{ zIndex: 410 }}>
+          {resting.map((b) => (
+            <Polyline
+              key={`r-${b.route.label}`}
+              positions={b.legs}
+              pathOptions={{
+                color: b.color,
+                weight: focus ? 1.6 : 2.2,
+                opacity: focus ? 0.24 : 0.78,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+              eventHandlers={hoverProps(b.route.label)}
+            >
+              <Tooltip className="kr-zone" sticky>
+                {b.route.zone} · {b.pickups.length} stops · {b.route.distanceKm}{" "}
+                km · {b.route.loadKg} kg
+              </Tooltip>
+            </Polyline>
+          ))}
+        </Pane>
+
+        {/* The focused route, in its own pane so it is above every other line
+            regardless of the order routes happen to arrive in. */}
+        <Pane name={P_ACTIVE} style={{ zIndex: 440 }}>
+          {active && (
+            <Fragment key={`a-${active.route.label}`}>
+              <Polyline
+                positions={active.returnLeg}
+                interactive={false}
                 pathOptions={{
-                  color: "#0b0e10",
-                  fillColor: b.color,
-                  fillOpacity: dim ? 0.25 : 1,
-                  weight: 2,
+                  color: active.color,
+                  weight: 1.3,
+                  opacity: 0.4,
+                  dashArray: "2 7",
+                  lineCap: "round",
                 }}
-                eventHandlers={{ click: () => onSelect(b.route.label) }}
+              />
+              <Polyline
+                positions={active.legs}
+                interactive={false}
+                pathOptions={{
+                  color: "#080a0c",
+                  weight: 8,
+                  opacity: 0.7,
+                  lineCap: "round",
+                  lineJoin: "round",
+                }}
+              />
+              <Polyline
+                positions={active.legs}
+                pathOptions={{
+                  color: active.color,
+                  weight: 4.2,
+                  opacity: 1,
+                  lineCap: "round",
+                  lineJoin: "round",
+                }}
+                eventHandlers={hoverProps(active.route.label)}
               >
-                <Tooltip permanent direction="top" offset={[0, -10]}>
+                <Tooltip className="kr-zone" sticky>
+                  {active.route.zone} · {active.route.distanceKm} km ·{" "}
+                  {active.route.loadKg} kg
+                </Tooltip>
+              </Polyline>
+              {/* Direction of travel, only on the route being read. */}
+              <Polyline
+                positions={active.legs}
+                className="kr-flow"
+                interactive={false}
+                pathOptions={{
+                  color: "#ffffff",
+                  weight: 2,
+                  opacity: 0.5,
+                  dashArray: "9 18",
+                  lineCap: "round",
+                }}
+              />
+            </Fragment>
+          )}
+        </Pane>
+
+        {/* Markers live in leaflet's marker pane, above every route line. */}
+
+        {/* The shared supplier set, drawn once and neutrally. These belong to
+            the fleet as a whole, not to any one vehicle. */}
+        {consolidated &&
+          !active &&
+          pickupHubs.map((p) => (
+            <Marker
+              key={`hub-${p.lat},${p.lng}`}
+              position={[p.lat, p.lng]}
+              icon={hubIcon()}
+              zIndexOffset={200}
+            >
+              <Tooltip className="kr-zone">{[...p.names].join(" · ")}</Tooltip>
+            </Marker>
+          ))}
+
+        {/* One diamond per consolidated zone: eight vehicles, eight drops. */}
+        {consolidated &&
+          drawn.map((b) => {
+            const mode: Emphasis =
+              b.route.label === focus ? "full" : focus ? "dim" : "quiet";
+            return (
+              <Marker
+                key={`drop-${b.route.label}`}
+                position={[b.drop.lat, b.drop.lng]}
+                icon={dropIcon(b.color, mode)}
+                zIndexOffset={mode === "full" ? 500 : 100}
+                eventHandlers={hoverProps(b.route.label)}
+              >
+                {/* Zone names only pin for the focused route; shown all at
+                    once they overlap into an unreadable stack. */}
+                <Tooltip
+                  className="kr-zone"
+                  permanent={mode === "full"}
+                  direction="top"
+                  offset={[0, -11]}
+                >
                   {b.route.zone}
                 </Tooltip>
-              </CircleMarker>
-            </Fragment>
-          );
-        })}
+              </Marker>
+            );
+          })}
 
-      {/* Pickup dots in baseline view */}
-      {!consolidated &&
-        shipments.map((s) => (
-          <CircleMarker
-            key={`bp-${s.reference}`}
-            center={[s.originLat, s.originLng]}
-            radius={5}
-            pathOptions={{
-              color: "#fff",
-              fillColor: "#ff6b2c",
-              fillOpacity: 1,
-              weight: 1.5,
-            }}
+        {/* The focused route's own pickup sequence, numbered in its colour. */}
+        {consolidated &&
+          active?.pickups.map((p, idx) => (
+            <Marker
+              key={`stop-${active.route.label}-${idx}`}
+              position={[p.lat, p.lng]}
+              icon={stopIcon(active.color, String(idx + 1), "full")}
+              zIndexOffset={400}
+              eventHandlers={hoverProps(active.route.label)}
+            >
+              {/* Named, not numbered. A pin marked "2" tells you nothing;
+                  "2 · Mai Dubai" is what ties the companies listed beside
+                  the map to the places the van actually visits. */}
+              <Tooltip
+                className="kr-stop"
+                permanent
+                direction="right"
+                offset={[11, 0]}
+              >
+                {idx + 1} · {p.companies.join(" + ")}
+              </Tooltip>
+              <Popup>
+                <strong>
+                  {active.route.label} · stop {idx + 1}
+                </strong>
+                <br />
+                {p.names.join(", ")}
+              </Popup>
+            </Marker>
+          ))}
+
+        {!consolidated &&
+          baseline.map((b) => (
+            <Marker
+              key={`bp-${b.ref}`}
+              position={[b.shipment.originLat, b.shipment.originLng]}
+              icon={stopIcon("#8d99a0", "", "quiet")}
+              zIndexOffset={0}
+            />
+          ))}
+
+        {/* Vehicles on the road, above every line and every stop. */}
+        {trucks.map((t) => (
+          <Marker
+            key={`v-${t.vehicle._id}`}
+            position={t.at}
+            icon={truckIcon(t.color, t.vehicle.progress, t.returning)}
+            zIndexOffset={800}
+            eventHandlers={hoverProps(t.vehicle.label)}
           >
-            <Tooltip>
-              {s.supplierName} · {s.reference} · {s.weightKg} kg
+            <Tooltip className="kr-zone" direction="top" offset={[0, -14]}>
+              {t.vehicle.plate} ·{" "}
+              {t.returning
+                ? `delivered ${t.zone}, returning to depot`
+                : `${t.zone} · ${t.vehicle.stopsCompleted}/${t.vehicle.stopsTotal} stops`}
             </Tooltip>
-          </CircleMarker>
+          </Marker>
         ))}
-    </MapContainer>
+
+        {/* Drawn last so the anchor of the whole network sits on top. */}
+        <Marker
+          position={[DEPOT.lat, DEPOT.lng]}
+          icon={depotIcon()}
+          zIndexOffset={900}
+        >
+          <Popup>{DEPOT.name}</Popup>
+        </Marker>
+
+        <ZoomControl position="topright" />
+      </MapContainer>
+
+      <div className="kr-legend">
+        <span>
+          <i className="kr-key-depot" />
+          Depot
+        </span>
+        <span>
+          <i className="kr-key-stop" />
+          Supplier
+        </span>
+        <span>
+          <i className="kr-key-drop" />
+          Drop zone
+        </span>
+        {consolidated && (
+          <span className="kr-hint">
+            {active
+              ? `Collects ${active.pickups
+                  .flatMap((p) => p.companies)
+                  .join(" → ")} → drops all in ${active.route.zone}`
+              : drawn.length === 0
+                ? "Tick a route on the left to put it on the map"
+                : "Hover a route to see which companies share that van"}
+          </span>
+        )}
+      </div>
+      <div className="kr-attrib">Esri · HERE · Garmin · OpenStreetMap</div>
+    </div>
   );
 }

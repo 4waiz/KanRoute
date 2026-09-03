@@ -27,11 +27,21 @@
   /* Terminal is always dark, in either theme. */
   --kf-terminal: #08090a;
 
-  --kf-accent: #ff7a33;
-  --kf-pass: #3ddc84;
-  --kf-fail: #ff5a4f;
-  --kf-review: #ffb340;
-  --kf-running: #4d9dff;
+  /* Brand palette sampled from the logo: #3048cc at the base of the mark,
+     #60f0a8 at the arrow tips. Blue carries brand and action, mint carries
+     success and savings, so green never means two things at once. */
+  --kf-accent: #4468e8;
+  --kf-accent-deep: #3048cc;
+  --kf-mint: #60f0a8;
+
+  --kf-pass: #60f0a8;
+  --kf-fail: #ff5f57;
+  --kf-review: #ffbb3d;
+  /* Teal sits midway along the logo gradient, so "in transit" reads as
+     brand-adjacent without colliding with the accent. */
+  --kf-running: #38d9d0;
+
+  --kf-brand-gradient: linear-gradient(140deg, #3f5fe4 0%, #2f8fd0 55%, #35c9b0 100%);
 
   --kf-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.42);
   --kf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
@@ -41,6 +51,7 @@
   --color-kf-card: var(--kf-card);
   --color-kf-ink: var(--kf-ink);
   --color-kf-accent: var(--kf-accent);
+  --color-kf-mint: var(--kf-mint);
   --color-kf-pass: var(--kf-pass);
   --color-kf-fail: var(--kf-fail);
   --color-kf-review: var(--kf-review);
@@ -97,21 +108,56 @@ body {
   transform: translateY(-3px);
 }
 
-/* Dark basemap without a second tile provider or an API key. Markers and
-   polylines live in overlay panes, so they keep their true colours. */
-.leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.92)
-    saturate(0.7);
-}
-
+/* Esri's dark canvas is already a dark basemap, so the tile pane carries no
+   filter. Inverting a light basemap is what previously flattened Dubai into
+   a dark rectangle and left the routes looking pasted on top of it. */
 .leaflet-container {
-  background: #0b0e10;
+  background: #2a2d2f;
+  font: inherit;
 }
 
+/* The map is a product surface, not a widget dropped onto the page. */
+.kr-map {
+  background: #2a2d2f;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+/* A gentle lift, not an inversion. Esri's canvas is tuned for a white app
+   shell; against this one the street network needs a little more presence
+   before it reads as a map rather than a flat panel. */
+.leaflet-tile-pane {
+  filter: brightness(1.14) contrast(1.08) saturate(0.85);
+}
+
+/* Place names give context. They sit under the routes, so they can be close
+   to full strength without competing with the plan. */
+.leaflet-kr-labels-pane {
+  opacity: 0.88;
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: var(--kf-shadow-sm) !important;
+}
 .leaflet-control-zoom a {
-  background: var(--kf-card) !important;
+  background: rgba(14, 17, 19, 0.88) !important;
+  color: var(--kf-ink-2) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  width: 26px !important;
+  height: 26px !important;
+  line-height: 24px !important;
+  font-size: 15px !important;
+  backdrop-filter: blur(6px);
+}
+.leaflet-control-zoom a:first-child {
+  border-radius: 9px 9px 0 0 !important;
+}
+.leaflet-control-zoom a:last-child {
+  border-radius: 0 0 9px 9px !important;
+}
+.leaflet-control-zoom a:hover {
+  background: rgba(31, 35, 39, 0.95) !important;
   color: var(--kf-ink) !important;
-  border-color: var(--kf-border) !important;
 }
 
 .leaflet-control-attribution {
@@ -167,10 +213,442 @@ body {
   top: 0;
   bottom: 0;
   width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(255, 122, 51, 0.6), transparent);
+  background: linear-gradient(90deg, transparent, rgba(68, 104, 232, 0.7), transparent);
   animation: kf-sweep 1.5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .kf-spin, .kf-sweep::before, .kf-enter { animation: none; }
+}
+
+/* Directional flow along route lines. The dash marches toward the drop. */
+@keyframes kr-flow {
+  to { stroke-dashoffset: -240; }
+}
+.kr-flow {
+  animation: kr-flow 5s linear infinite;
+}
+
+/* Zone chips: quieter than a default leaflet tooltip, and never boxed in. */
+.leaflet-tooltip.kr-zone {
+  background: rgba(8, 9, 10, 0.82) !important;
+  color: var(--kf-ink) !important;
+  border: 1px solid var(--kf-border) !important;
+  border-radius: 999px !important;
+  padding: 2px 8px !important;
+  font: 600 10px/1.4 ui-sans-serif, system-ui, sans-serif !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+.leaflet-tooltip.kr-zone::before { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-flow { animation: none; }
+}
+
+/* One-shot flash when Convex pushes a new event. Keyed on the event id, so
+   React remounting the node replays it. No timers, no state. */
+@keyframes kr-ping {
+  0%   { background: color-mix(in srgb, var(--kf-pass) 30%, var(--kf-mix)); color: var(--kf-pass); }
+  100% { background: var(--kf-card-sub); color: var(--kf-ink-3); }
+}
+.kr-ping { animation: kr-ping 1.1s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-ping { animation: none; }
+}
+
+/* ------------------------------------------------------------ map markers */
+
+/* Stops on the route in focus: numbered, ringed, legible over any tile. */
+.kr-pin {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--c);
+  color: #07090a;
+  font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.92), 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* A supplier the whole fleet collects from: neutral, because it belongs to
+   no single route. Hollow so it never competes with a coloured drop. */
+.kr-hub {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(238, 241, 243, 0.9);
+  box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.92), 0 0 0 4.5px rgba(238, 241, 243, 0.18);
+}
+
+/* Every other stop: present and countable, but quiet. */
+.kr-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 0 1.5px rgba(6, 8, 10, 0.9);
+}
+
+/* Drops are destinations, so they stay square against round pickups. */
+.kr-drop {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--c);
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.92), 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.kr-drop-on {
+  box-shadow:
+    0 0 0 2px rgba(6, 8, 10, 0.92),
+    0 0 0 5px color-mix(in srgb, var(--c) 26%, transparent),
+    0 2px 10px rgba(0, 0, 0, 0.55);
+}
+
+/* The depot anchors the network, so it reads as a place rather than a stop. */
+.kr-depot {
+  position: relative;
+}
+.kr-depot-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f2f4f5;
+  box-shadow: 0 0 0 3px rgba(6, 8, 10, 0.9), 0 0 0 7px rgba(242, 244, 245, 0.16);
+}
+.kr-depot-tag {
+  position: absolute;
+  left: 50%;
+  top: 21px;
+  transform: translateX(-50%);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f2f4f5;
+  color: #0b0e10;
+  font: 700 8.5px/1.4 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+/* Map furniture: enough to read the map, not enough to crowd it. */
+.kr-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(11, 14, 16, 0.78);
+  border: 1px solid var(--kf-border);
+  backdrop-filter: blur(8px);
+  font: 600 9.5px/1 ui-sans-serif, system-ui, sans-serif;
+  color: var(--kf-ink-2);
+  pointer-events: none;
+}
+.kr-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.kr-legend i {
+  display: block;
+}
+.kr-key-depot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f2f4f5;
+}
+.kr-key-stop {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kf-accent);
+}
+.kr-key-drop {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--kf-mint);
+  transform: rotate(45deg);
+}
+
+/* Tells the reader what the resting lines are, so the simplification is
+   stated rather than assumed. */
+.kr-hint {
+  padding-left: 9px;
+  margin-left: 2px;
+  border-left: 1px solid var(--kf-border);
+  color: var(--kf-ink-3);
+  font-weight: 500;
+}
+
+/* Stop labels on the focused route. Named pins are what connect the
+   companies listed beside the map to the places the van actually visits. */
+.leaflet-tooltip.kr-stop {
+  background: rgba(8, 10, 12, 0.9) !important;
+  color: var(--kf-ink) !important;
+  border: 1px solid var(--kf-border-strong) !important;
+  border-radius: 7px !important;
+  padding: 2px 7px !important;
+  font: 600 10px/1.4 ui-sans-serif, system-ui, sans-serif !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6) !important;
+  white-space: nowrap;
+}
+.leaflet-tooltip.kr-stop::before {
+  display: none !important;
+}
+
+/* The caption grows once a route is picked, so give it room to breathe. */
+.kr-hint {
+  max-width: 70ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A vehicle running the plan. The badge carries the route colour, the bar
+   under it is stop progress, so the map answers "what is happening" on its
+   own without anyone reading a panel. */
+.kr-truck {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.kr-truck-badge {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 7px;
+  background: var(--c);
+  color: #07090a;
+  box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.92), 0 2px 9px rgba(0, 0, 0, 0.6);
+}
+.kr-truck-bar {
+  display: block;
+  width: 22px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(6, 8, 10, 0.85);
+  box-shadow: 0 0 0 1px rgba(6, 8, 10, 0.9);
+  overflow: hidden;
+}
+.kr-truck-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--c);
+  transition: width 0.6s ease;
+}
+/* Finished its round: the badge steps back, the bar reads full. */
+.kr-truck-done .kr-truck-badge {
+  background: var(--kf-pass);
+}
+
+.kr-attrib {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 1000;
+  font: 500 8px/1 ui-sans-serif, system-ui, sans-serif;
+  color: rgba(238, 241, 243, 0.32);
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------- guided tour */
+
+/* The overlay explains the app; it must not take it away. Clicks pass
+   straight through to the page underneath, so a user can tick a route or
+   press a button while the tour is still open - being told what a control
+   does and then finding it dead is worse than no tour at all. */
+.kr-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  pointer-events: none;
+}
+
+/* The card itself is the one part that does take clicks. */
+.kr-tour-card {
+  pointer-events: auto;
+}
+
+/* The dim and the cut-out are the same element: an enormous shadow
+   spreading outward from the highlighted box, so there is no mask to keep
+   in sync and nothing to misalign. */
+.kr-tour-spot {
+  position: fixed;
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 9999px rgba(4, 6, 8, 0.72),
+    0 0 0 1.5px color-mix(in srgb, var(--kf-accent) 70%, transparent),
+    0 0 0 7px color-mix(in srgb, var(--kf-accent) 20%, transparent);
+  transition:
+    top 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.kr-tour-veil {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 8, 0.72);
+  pointer-events: none;
+}
+
+.kr-tour-card {
+  position: fixed;
+  padding: 14px 15px 12px;
+  border-radius: 16px;
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--kf-accent) 9%, var(--kf-card)) 0%,
+    var(--kf-card) 60%
+  );
+  border: 1px solid color-mix(in srgb, var(--kf-accent) 26%, var(--kf-border));
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.62), 0 2px 6px rgba(0, 0, 0, 0.4);
+  animation: kr-tour-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes kr-tour-in {
+  from { opacity: 0; transform: translateY(7px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.kr-tour-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.kr-tour-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--kf-accent) 16%, var(--kf-mix));
+  color: var(--kf-accent);
+  font: 700 9px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.kr-tour-x {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  color: var(--kf-ink-3);
+  transition: background 0.15s, color 0.15s;
+}
+.kr-tour-x:hover {
+  background: var(--kf-card-sub);
+  color: var(--kf-ink);
+}
+
+.kr-tour-title {
+  font: 600 14.5px/1.3 ui-sans-serif, system-ui, sans-serif;
+  color: var(--kf-ink);
+  letter-spacing: -0.01em;
+}
+
+.kr-tour-body {
+  margin-top: 5px;
+  font: 400 11.5px/1.55 ui-sans-serif, system-ui, sans-serif;
+  color: var(--kf-ink-2);
+}
+
+.kr-tour-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 13px;
+}
+
+.kr-tour-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.kr-tour-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--kf-border-strong);
+  transition: width 0.25s, background 0.25s;
+}
+.kr-tour-dots i.past { background: color-mix(in srgb, var(--kf-accent) 45%, transparent); }
+.kr-tour-dots i.on {
+  width: 16px;
+  background: var(--kf-accent);
+}
+
+.kr-tour-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kr-tour-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+  color: var(--kf-ink-2);
+  background: var(--kf-card-sub);
+  transition: background 0.15s, color 0.15s;
+}
+.kr-tour-btn:hover { color: var(--kf-ink); }
+.kr-tour-btn-go {
+  background: var(--kf-accent);
+  color: #fff;
+}
+.kr-tour-btn-go:hover {
+  background: var(--kf-accent-deep);
+  color: #fff;
+}
+
+/* A quiet way back into the tour once it has been dismissed. */
+.kr-tour-replay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--kf-card);
+  color: var(--kf-ink-3);
+  box-shadow: inset 0 0 0 1px var(--kf-border);
+  transition: color 0.15s;
+}
+.kr-tour-replay:hover { color: var(--kf-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-tour-card { animation: none; }
+  .kr-tour-spot { transition: none; }
 }

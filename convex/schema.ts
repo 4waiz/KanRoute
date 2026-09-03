@@ -30,6 +30,8 @@ export const provider = v.union(
   v.literal("context.dev"),
   v.literal("convex"),
   v.literal("devin"),
+  v.literal("kanroute"),
+  // Retained so events written before the rename stay schema-valid.
   v.literal("loadshare"),
 );
 
@@ -108,6 +110,12 @@ export default defineSchema({
     proofOutput: v.optional(v.string()),
     optimiserCode: v.optional(v.string()),
     rawResult: v.optional(v.string()),
+
+    // Why the agent grouped things the way it did, and what forced a replan.
+    strategy: v.optional(v.string()),
+    disruption: v.optional(v.string()),
+    replanOfRunId: v.optional(v.id("runs")),
+    companiesServed: v.optional(v.number()),
   }).index("by_createdAt", ["createdAt"]),
 
   /** One consolidated vehicle route produced by the optimiser. */
@@ -121,6 +129,14 @@ export default defineSchema({
     windowStart: v.optional(v.string()),
     windowEnd: v.optional(v.string()),
     shipmentRefs: v.array(v.string()),
+    companies: v.optional(v.array(v.string())),
+    rationale: v.optional(v.string()),
+    // Real driving geometry from OSRM, resolved once when the plan is saved.
+    // roadPath is the full pickup sequence, linkPath the direct depot-to-zone
+    // run. Both optional: a route that fails to resolve falls back to the
+    // straight-line geometry the map can always compute itself.
+    roadPath: v.optional(v.array(v.array(v.number()))),
+    linkPath: v.optional(v.array(v.array(v.number()))),
     createdAt: v.number(),
   }).index("by_runId", ["runId"]),
 
@@ -154,6 +170,17 @@ export default defineSchema({
   })
     .index("by_runId", ["runId"])
     .index("by_status", ["status"]),
+
+  /** Single-row operating configuration. Real settings, not decoration. */
+  settings: defineTable({
+    vehicleCapacityKg: v.number(),
+    costRateAed: v.number(),
+    co2PerKm: v.number(),
+    detourFactor: v.number(),
+    avgSpeedKmh: v.number(),
+    maxPages: v.number(),
+    updatedAt: v.number(),
+  }),
 
   events: defineTable({
     runId: v.optional(v.id("runs")),
